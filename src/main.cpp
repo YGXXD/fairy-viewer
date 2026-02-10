@@ -6,6 +6,8 @@
 #include "backends/imgui_impl_sdl3.h"
 #include "backends/imgui_impl_sdlrenderer3.h"
 
+#include "vk_context.h"
+
 const char* title = "hello fairy!";
 const int width = 1280;
 const int height = 720;
@@ -16,6 +18,7 @@ SDL_Texture* targetTexture;
 int main(int argc, char* argv[]) {
     std::cout << "Hello World!" << std::endl;
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
+    fv::VkContext::Init();
     window = SDL_CreateWindow(title, width, height, SDL_WINDOW_RESIZABLE);
     SDL_ShowWindow(window);
 
@@ -61,6 +64,7 @@ int main(int argc, char* argv[]) {
     ImGui_ImplSDL3_Shutdown();
     SDL_DestroyTexture(targetTexture);
     SDL_DestroyWindow(window);
+    fv::VkContext::Quit();
     SDL_Quit();
     return 0;
 }

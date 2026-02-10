@@ -16,7 +16,7 @@ set(TOOLS_SCRIPT_DIR ${CMAKE_SOURCE_DIR}/tools)
 # executable
 set(PROJECT_SOURCE_FILES
 	${CMAKE_SOURCE_DIR}/src/main.cpp
-	${CMAKE_SOURCE_DIR}/src/gpu_context.cpp
+	${CMAKE_SOURCE_DIR}/src/vk_context.cpp
 )
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_FILES})
 

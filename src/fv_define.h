@@ -64,6 +64,13 @@
 #    define FV_FUNC __forceinline __declspec(nothrow)
 #endif
 
+#define FV_SINGLETON_IMPL(ClassName)             \
+    static FV_INLINE ClassName& Get()            \
+    {                                            \
+        static ClassName ClassName##Instance {}; \
+        return ClassName##Instance;              \
+    }
+
 #define FV_DELETE_COPY_MOVE(ClassName)               \
     ClassName(const ClassName&) = delete;            \
     ClassName(ClassName&&) = delete;                 \
