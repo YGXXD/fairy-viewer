@@ -1,0 +1,12 @@
+[submodule "third_party/sdl3"]
+	path = third_party/sdl3
+	url = git@github.com:libsdl-org/SDL.git
+[submodule "third_party/imgui"]
+	path = third_party/imgui
+	url = git@github.com:ocornut/imgui.git
+[submodule "third_party/sdl3_image"]
+	path = third_party/sdl3_image
+	url = git@github.com:libsdl-org/SDL_image.git
+[submodule "third_party/vmallocator"]
+	path = third_party/vmallocator
+	url = git@github.com:GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git

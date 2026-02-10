@@ -1,0 +1,80 @@
+cmake_minimum_required(VERSION 3.20)
+
+project(fairy-viewer)
+
+set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+set(TOOLS_SCRIPT_DIR ${CMAKE_SOURCE_DIR}/tools)
+
+# executable
+set(PROJECT_SOURCE_FILES
+	${CMAKE_SOURCE_DIR}/src/main.cpp
+	${CMAKE_SOURCE_DIR}/src/gpu_context.cpp
+)
+add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_FILES})
+
+# sdl3
+set(SDL_SHARED ON)
+set(SDL_STATIC OFF)
+set(SDL_TESTS OFF)
+set(SDL_TEST_LIBRARY OFF)
+add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/sdl3)
+target_link_libraries(${PROJECT_NAME} PUBLIC SDL3-shared)
+
+# sdl3_image
+set(SDLIMAGE_BUILD_SHARED_LIBS ON)
+set(SDLIMAGE_BUILD_STATIC_LIBS OFF)
+set(SDLIMAGE_TESTS OFF)
+set(SDLIMAGE_SAMPLES OFF)
+add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/sdl3_image)
+target_link_libraries(${PROJECT_NAME} PUBLIC SDL3_image-shared)
+
+# imgui
+set(IMGUI_SOURCE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
+add_library(ImGui STATIC
+	${IMGUI_SOURCE_DIR}/imgui.cpp
+	${IMGUI_SOURCE_DIR}/imgui_draw.cpp
+	${IMGUI_SOURCE_DIR}/imgui_widgets.cpp
+	${IMGUI_SOURCE_DIR}/imgui_tables.cpp
+	${IMGUI_SOURCE_DIR}/imgui_demo.cpp
+	${IMGUI_SOURCE_DIR}/backends/imgui_impl_sdlrenderer3.cpp
+	${IMGUI_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
+)
+target_link_libraries(ImGui PUBLIC SDL3-shared)
+target_include_directories(ImGui PUBLIC ${IMGUI_SOURCE_DIR})
+target_link_libraries(${PROJECT_NAME} PUBLIC ImGui)
+
+# vulkan
+find_package(Vulkan REQUIRED)
+target_link_libraries(${PROJECT_NAME} PUBLIC Vulkan::Vulkan)
+
+# vmallocator
+set(VMALLOCATOR_SOURCE_DIR ${CMAKE_SOURCE_DIR}/third_party/vmallocator)
+set(VMALLOCATOR_BINARY_DIR ${CMAKE_BINARY_DIR}/third_party/vmallocator)
+execute_process(
+    COMMAND ${CMAKE_COMMAND} 
+        -DIMPL_MACRO=VMA_IMPLEMENTATION
+        -DHEAD_FILE=${VMALLOCATOR_SOURCE_DIR}/include/vk_mem_alloc.h
+        -DOUTPUT_DIR=${VMALLOCATOR_BINARY_DIR}
+        -P ${TOOLS_SCRIPT_DIR}/gen_head_impl_cpp.cmake
+)
+set(VMALLOCATOR_SOURCE_FILES ${VMALLOCATOR_BINARY_DIR}/vk_mem_alloc.h.cpp)
+add_library(VmAllocator STATIC ${VMALLOCATOR_SOURCE_FILES})
+target_include_directories(VmAllocator PUBLIC ${VMALLOCATOR_SOURCE_DIR}/include)
+target_link_libraries(${PROJECT_NAME} PUBLIC VmAllocator)
+
+# copy assets
+set(ASSETS_SOURCE_DIR ${CMAKE_SOURCE_DIR}/assets)
+set(ASSETS_BINARY_DIR ${CMAKE_BINARY_DIR}/assets)
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${ASSETS_SOURCE_DIR} ${ASSETS_BINARY_DIR}
+    COMMAND ${CMAKE_COMMAND} -E echo "-- Copying assets directory"
+)
+target_compile_definitions(${PROJECT_NAME} PRIVATE ASSETS_PATH="${ASSETS_BINARY_DIR}/")
