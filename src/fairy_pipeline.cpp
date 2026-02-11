@@ -3,8 +3,29 @@
 #include "shaders.hpp"
 #include "shaderc/shaderc.hpp"
 
+#if defined(FV_DEBUG_ENABLE)
+#    include <iostream>
+#endif
+
 namespace fv
 {
+
+std::vector<uint32_t> CompileShader(const char* source, size_t source_size, shaderc_shader_kind kind)
+{
+    shaderc::Compiler compiler;
+    shaderc::CompileOptions options;
+    options.SetTargetEnvironment(shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_2);
+    shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(source, source_size, kind, "shader", options);
+    if (module.GetCompilationStatus() != shaderc_compilation_status_success)
+    {
+#if defined(FV_DEBUG_ENABLE)
+        std::cerr << "failed to compile shader: " << module.GetErrorMessage() << std::endl;
+#endif
+        return {};
+    }
+    std::vector<uint32_t> spirv = { module.cbegin(), module.cend() };
+    return std::move(spirv);
+}
 
 FairyPipeline::FairyPipeline(vk::RenderPass render_pass, uint32_t subpass_index)
 {
@@ -29,6 +50,31 @@ FairyPipeline::~FairyPipeline()
 
 void FairyPipeline::CreateShaders()
 {
+    const char* source = R"(
+        #version 450
+
+        layout(location = 0) out vec4 outColor;
+
+        layout(set = 0, binding = 0) uniform shaderInputs {
+            vec3 iResolution;
+        } ub;
+
+        vec3 iResolution = ub.iResolution;
+
+        void mainImage(out vec4 fragColor, in vec2 fragCoord)
+        {
+            vec2 uv = fragCoord / iResolution.xy;
+            fragColor = vec4(uv, 0.0, 1.0);
+        }
+
+        void main() 
+        {
+            vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
+            mainImage(outColor, fragCoord);
+        }
+    )";
+    std::vector<uint32_t> fragment_shader_spirv = CompileShader(source, strlen(source), shaderc_shader_kind::shaderc_glsl_fragment_shader);
+
     vk::ShaderModuleCreateInfo shader_create_info = {};
     shader_create_info.codeSize = shader::fairy_vert_len;
     shader_create_info.pCode = reinterpret_cast<const uint32_t*>(shader::fairy_vert);

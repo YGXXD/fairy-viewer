@@ -58,6 +58,10 @@ target_link_libraries(${PROJECT_NAME} PUBLIC ImGui)
 find_package(Vulkan REQUIRED)
 target_link_libraries(${PROJECT_NAME} PUBLIC Vulkan::Vulkan)
 
+# shaderc
+find_package(Vulkan REQUIRED COMPONENTS shaderc_combined)
+target_link_libraries(${PROJECT_NAME} PUBLIC Vulkan::shaderc_combined)
+
 # vmallocator
 set(VMALLOCATOR_SOURCE_DIR ${CMAKE_SOURCE_DIR}/third_party/vmallocator)
 set(VMALLOCATOR_BINARY_DIR ${CMAKE_BINARY_DIR}/third_party/vmallocator)
@@ -70,6 +74,7 @@ execute_process(
 )
 set(VMALLOCATOR_SOURCE_FILES ${VMALLOCATOR_BINARY_DIR}/vk_mem_alloc.h.cpp)
 add_library(VmAllocator STATIC ${VMALLOCATOR_SOURCE_FILES})
+target_link_libraries(VmAllocator PUBLIC Vulkan::Vulkan)
 target_include_directories(VmAllocator PUBLIC ${VMALLOCATOR_SOURCE_DIR}/include)
 target_link_libraries(${PROJECT_NAME} PUBLIC VmAllocator)
 

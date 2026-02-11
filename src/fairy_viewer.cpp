@@ -184,7 +184,7 @@ void RenderFairy()
             for (int x = 0; x < fairy_width; ++x)
             {
                 dst_pixels_u32[y * (dst_pitch / 4) + x] =
-                    SDL_MapRGBA(details, NULL, src_pixels[0], src_pixels[1], src_pixels[2], 255);
+                    SDL_MapRGBA(details, NULL, src_pixels[0], src_pixels[1], src_pixels[2], src_pixels[3]);
                 src_pixels += 4;
             }
         }
@@ -219,6 +219,7 @@ int main(int argc, char* argv[])
     SDL_Surface* surface = IMG_LoadPNG_IO(png_io);
     SDL_CloseIO(png_io);
     sdl_image_texture = SDL_CreateTextureFromSurface(renderer, surface);
+    SDL_DestroySurface(surface);
     sdl_fairy_image_texture =
         SDL_CreateTexture(renderer, sdl_fairy_image_format, SDL_TEXTUREACCESS_STREAMING, fairy_width, fairy_height);
     ImGui::CreateContext();
@@ -264,6 +265,7 @@ int main(int argc, char* argv[])
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     SDL_DestroyTexture(sdl_image_texture);
+    SDL_DestroyTexture(sdl_fairy_image_texture);
     SDL_DestroyWindow(window);
     fv::FairyContext::Quit();
     SDL_Quit();
