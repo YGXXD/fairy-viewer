@@ -15,8 +15,11 @@ set(TOOLS_SCRIPT_DIR ${CMAKE_SOURCE_DIR}/tools)
 
 # executable
 set(PROJECT_SOURCE_FILES
-	${CMAKE_SOURCE_DIR}/src/main.cpp
-	${CMAKE_SOURCE_DIR}/src/vk_context.cpp
+	${CMAKE_SOURCE_DIR}/src/fairy_viewer.cpp
+	${CMAKE_SOURCE_DIR}/src/fairy_context.cpp
+	${CMAKE_SOURCE_DIR}/src/fairy_buffer.cpp
+	${CMAKE_SOURCE_DIR}/src/fairy_texture.cpp
+	${CMAKE_SOURCE_DIR}/src/fairy_pipeline.cpp
 )
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_FILES})
 
@@ -69,6 +72,28 @@ set(VMALLOCATOR_SOURCE_FILES ${VMALLOCATOR_BINARY_DIR}/vk_mem_alloc.h.cpp)
 add_library(VmAllocator STATIC ${VMALLOCATOR_SOURCE_FILES})
 target_include_directories(VmAllocator PUBLIC ${VMALLOCATOR_SOURCE_DIR}/include)
 target_link_libraries(${PROJECT_NAME} PUBLIC VmAllocator)
+
+# shaders
+set(SHADER_SOURCE_DIR ${CMAKE_SOURCE_DIR}/shaders)
+set(SHADER_BINARY_DIR ${CMAKE_BINARY_DIR}/shaders)
+file(GLOB SHADER_FILES_LIST
+	${SHADER_SOURCE_DIR}/fairy.vert
+	${SHADER_SOURCE_DIR}/fairy.frag
+)
+string(REPLACE ";" " " SHADER_FILES "${SHADER_FILES_LIST}")
+execute_process(
+    COMMAND ${CMAKE_COMMAND}
+        -DINPUT_SHADER_FILES=${SHADER_FILES}
+        -DOUTPUT_DIR=${SHADER_BINARY_DIR}
+        -P ${TOOLS_SCRIPT_DIR}/gen_shader_cpp.cmake
+)
+set(SHADER_CPP_FILES
+	${SHADER_BINARY_DIR}/gen/fairy.vert.cpp
+	${SHADER_BINARY_DIR}/gen/fairy.frag.cpp
+)
+add_library(Shader STATIC ${SHADER_CPP_FILES})
+target_include_directories(Shader INTERFACE ${SHADER_BINARY_DIR}/gen)
+target_link_libraries(${PROJECT_NAME} PUBLIC Shader)
 
 # copy assets
 set(ASSETS_SOURCE_DIR ${CMAKE_SOURCE_DIR}/assets)

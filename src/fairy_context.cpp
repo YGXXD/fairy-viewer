@@ -1,4 +1,4 @@
-#include "vk_context.h"
+#include "fairy_context.hpp"
 
 #if defined(FV_DEBUG_ENABLE)
 #    include <iostream>
@@ -59,7 +59,7 @@ void CreateInstance()
         });
         if (it == available_extensions.end())
         {
-            std::cerr << "Vulkan不支持开启InstanceExtension:\n";
+            std::cerr << "vulkan does not support enabling instance extensions:\n";
             std::cerr << "\t" << extension_name << std::endl;
         }
     }
@@ -163,7 +163,7 @@ void CreateVmaMemoryAllocator()
     vmaCreateAllocator(&allocator_info, &allocator_);
 }
 
-void VkContext::Init()
+void FairyContext::Init()
 {
     CreateInstance();
     CreatePhysicalDeviceAndProperties();
@@ -174,10 +174,11 @@ void VkContext::Init()
     Get().allocator = allocator_;
     Get().physical_device = physical_device_;
     Get().device = device_;
+    Get().queue = queue_;
     Get().command_pool = command_pool_;
 }
 
-void VkContext::Quit()
+void FairyContext::Quit()
 {
     vmaDestroyAllocator(allocator_);
     device_.destroyCommandPool(command_pool_);
@@ -190,8 +191,8 @@ void VkContext::Quit()
     Get().command_pool = nullptr;
 }
 
-VkContext::VkContext() = default;
+FairyContext::FairyContext() = default;
 
-VkContext::~VkContext() = default;
+FairyContext::~FairyContext() = default;
 
 } // namespace fv
