@@ -1,4 +1,4 @@
-#include "fairy_context.hpp"
+#include "gpu_context.hpp"
 
 #if defined(FV_DEBUG_ENABLE)
 #    include <iostream>
@@ -163,7 +163,7 @@ void CreateVmaMemoryAllocator()
     vmaCreateAllocator(&allocator_info, &allocator_);
 }
 
-void FairyContext::Init()
+void GpuContext::Init()
 {
     CreateInstance();
     CreatePhysicalDeviceAndProperties();
@@ -178,7 +178,7 @@ void FairyContext::Init()
     Get().command_pool = command_pool_;
 }
 
-void FairyContext::Quit()
+void GpuContext::Quit()
 {
     vmaDestroyAllocator(allocator_);
     device_.destroyCommandPool(command_pool_);
@@ -191,8 +191,8 @@ void FairyContext::Quit()
     Get().command_pool = nullptr;
 }
 
-FairyContext::FairyContext() = default;
+GpuContext::GpuContext() = default;
 
-FairyContext::~FairyContext() = default;
+GpuContext::~GpuContext() = default;
 
 } // namespace fv

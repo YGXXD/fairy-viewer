@@ -1,5 +1,5 @@
 #include "fairy_pipeline.hpp"
-#include "fairy_context.hpp"
+#include "render_core/gpu_context.hpp"
 #include "shaders.hpp"
 #include "shaderc/shaderc.hpp"
 
@@ -38,7 +38,7 @@ FairyPipeline::FairyPipeline(vk::RenderPass render_pass, uint32_t subpass_index)
 
 FairyPipeline::~FairyPipeline()
 {
-    vk::Device device = FairyContext::Get().device;
+    vk::Device device = GpuContext::Get().device;
     device.destroyPipeline(pipeline_);
     device.destroyPipelineLayout(pipeline_layout_);
     device.destroyDescriptorPool(descriptor_pool_);
@@ -78,11 +78,11 @@ void FairyPipeline::CreateShaders()
     vk::ShaderModuleCreateInfo shader_create_info = {};
     shader_create_info.codeSize = shader::fairy_vert_len;
     shader_create_info.pCode = reinterpret_cast<const uint32_t*>(shader::fairy_vert);
-    vertex_shader_ = FairyContext::Get().device.createShaderModule(shader_create_info);
+    vertex_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
 
     shader_create_info.codeSize = shader::fairy_frag_len;
     shader_create_info.pCode = reinterpret_cast<const uint32_t*>(shader::fairy_frag);
-    fragment_shader_ = FairyContext::Get().device.createShaderModule(shader_create_info);
+    fragment_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
 }
 
 void FairyPipeline::CreateDescriptorSetLayouts()
@@ -93,7 +93,7 @@ void FairyPipeline::CreateDescriptorSetLayouts()
     i_resolution_binding.descriptorType = vk::DescriptorType::eUniformBuffer;
     i_resolution_binding.stageFlags = vk::ShaderStageFlagBits::eFragment;
     std::vector<vk::DescriptorSetLayoutBinding> set0_bindings = { i_resolution_binding };
-    descriptor_set_layouts_.push_back(FairyContext::Get().device.createDescriptorSetLayout(
+    descriptor_set_layouts_.push_back(GpuContext::Get().device.createDescriptorSetLayout(
         vk::DescriptorSetLayoutCreateInfo({}, set0_bindings.size(), set0_bindings.data())));
 }
 
@@ -108,7 +108,7 @@ void FairyPipeline::CreateDescriptorPool()
     descriptor_pool_create_info.pPoolSizes = pool_sizes.data();
     descriptor_pool_create_info.maxSets = 1;
     descriptor_pool_create_info.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
-    descriptor_pool_ = FairyContext::Get().device.createDescriptorPool(descriptor_pool_create_info);
+    descriptor_pool_ = GpuContext::Get().device.createDescriptorPool(descriptor_pool_create_info);
 }
 
 void FairyPipeline::CreatePipelineLayout()
@@ -116,7 +116,7 @@ void FairyPipeline::CreatePipelineLayout()
     vk::PipelineLayoutCreateInfo pipeline_layout_create_info = {};
     pipeline_layout_create_info.setLayoutCount = descriptor_set_layouts_.size();
     pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts_.data();
-    pipeline_layout_ = FairyContext::Get().device.createPipelineLayout(pipeline_layout_create_info);
+    pipeline_layout_ = GpuContext::Get().device.createPipelineLayout(pipeline_layout_create_info);
 }
 
 void FairyPipeline::CreatePipeline(vk::RenderPass render_pass, uint32_t subpass_index)
@@ -191,7 +191,7 @@ void FairyPipeline::CreatePipeline(vk::RenderPass render_pass, uint32_t subpass_
     pipeline_create_info.pDynamicState = &dynamic_states_create_info;
     pipeline_create_info.renderPass = render_pass;
     pipeline_create_info.subpass = subpass_index;
-    pipeline_ = FairyContext::Get().device.createGraphicsPipeline(nullptr, pipeline_create_info).value;
+    pipeline_ = GpuContext::Get().device.createGraphicsPipeline(nullptr, pipeline_create_info).value;
 }
 
 } // namespace fv

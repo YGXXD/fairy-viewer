@@ -1,5 +1,5 @@
-#include "fairy_texture.hpp"
-#include "fairy_context.hpp"
+#include "gpu_texture.hpp"
+#include "gpu_context.hpp"
 
 namespace fv
 {
@@ -23,7 +23,7 @@ static constexpr vk::ImageAspectFlags SubresourceAspectMask(vk::Format format)
     }
 }
 
-FairyTexture::FairyTexture(uint32_t width, uint32_t height, vk::Format image_format, vk::ImageUsageFlags image_usage,
+GpuTexture::GpuTexture(uint32_t width, uint32_t height, vk::Format image_format, vk::ImageUsageFlags image_usage,
                            vk::MemoryPropertyFlags memory_property)
     : format_(image_format), width_(width), height_(height)
 {
@@ -48,27 +48,27 @@ FairyTexture::FairyTexture(uint32_t width, uint32_t height, vk::Format image_for
 
     VkImage image;
     VmaAllocation allocation;
-    vmaCreateImage(FairyContext::Get().allocator, &static_cast<VkImageCreateInfo&>(image_create_info),
+    vmaCreateImage(GpuContext::Get().allocator, &static_cast<VkImageCreateInfo&>(image_create_info),
                    &alloc_create_info, &image, &allocation, nullptr);
     image_ = image;
-    image_view_ = FairyContext::Get().device.createImageView(*MakeImageViewCreateInfo());
+    image_view_ = GpuContext::Get().device.createImageView(*MakeImageViewCreateInfo());
     allocation_ = allocation;
 
     if (is_host)
     {
         VmaAllocationInfo allocation_info;
-        vmaGetAllocationInfo(FairyContext::Get().allocator, allocation_, &allocation_info);
+        vmaGetAllocationInfo(GpuContext::Get().allocator, allocation_, &allocation_info);
         host_pointer_ = allocation_info.pMappedData;
     }
 }
 
-FairyTexture::~FairyTexture()
+GpuTexture::~GpuTexture()
 {
-    FairyContext::Get().device.destroyImageView(image_view_);
-    vmaDestroyImage(FairyContext::Get().allocator, image_, allocation_);
+    GpuContext::Get().device.destroyImageView(image_view_);
+    vmaDestroyImage(GpuContext::Get().allocator, image_, allocation_);
 }
 
-std::unique_ptr<vk::ImageSubresourceLayers> FairyTexture::MakeSubresourceLayers() const
+std::unique_ptr<vk::ImageSubresourceLayers> GpuTexture::MakeSubresourceLayers() const
 {
     std::unique_ptr<vk::ImageSubresourceLayers> subresourceLayers = std::make_unique<vk::ImageSubresourceLayers>();
     subresourceLayers->aspectMask = SubresourceAspectMask(format_);
@@ -78,7 +78,7 @@ std::unique_ptr<vk::ImageSubresourceLayers> FairyTexture::MakeSubresourceLayers(
     return std::move(subresourceLayers);
 }
 
-std::unique_ptr<vk::ImageSubresourceRange> FairyTexture::MakeSubresourceRange() const
+std::unique_ptr<vk::ImageSubresourceRange> GpuTexture::MakeSubresourceRange() const
 {
     std::unique_ptr<vk::ImageSubresourceRange> subresourceRange = std::make_unique<vk::ImageSubresourceRange>();
     subresourceRange->aspectMask = SubresourceAspectMask(format_);
@@ -89,7 +89,7 @@ std::unique_ptr<vk::ImageSubresourceRange> FairyTexture::MakeSubresourceRange() 
     return std::move(subresourceRange);
 }
 
-std::unique_ptr<vk::ImageViewCreateInfo> FairyTexture::MakeImageViewCreateInfo() const
+std::unique_ptr<vk::ImageViewCreateInfo> GpuTexture::MakeImageViewCreateInfo() const
 {
 
     std::unique_ptr<vk::ImageViewCreateInfo> create_info = std::make_unique<vk::ImageViewCreateInfo>();

@@ -16,9 +16,9 @@ set(TOOLS_SCRIPT_DIR ${CMAKE_SOURCE_DIR}/tools)
 # executable
 set(PROJECT_SOURCE_FILES
 	${CMAKE_SOURCE_DIR}/src/fairy_viewer.cpp
-	${CMAKE_SOURCE_DIR}/src/fairy_context.cpp
-	${CMAKE_SOURCE_DIR}/src/fairy_buffer.cpp
-	${CMAKE_SOURCE_DIR}/src/fairy_texture.cpp
+	${CMAKE_SOURCE_DIR}/src/render_core/gpu_context.cpp
+	${CMAKE_SOURCE_DIR}/src/render_core/gpu_buffer.cpp
+	${CMAKE_SOURCE_DIR}/src/render_core/gpu_texture.cpp
 	${CMAKE_SOURCE_DIR}/src/fairy_pipeline.cpp
 )
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_FILES})

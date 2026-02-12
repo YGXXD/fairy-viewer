@@ -1,17 +1,17 @@
 #pragma once
 
 #include <vulkan/vulkan.hpp>
-#include "fairy_viewer.hpp"
+#include "../fairy_viewer.hpp"
 #include "vk_mem_alloc.h"
 
 namespace fv
 {
 
-class FairyContext
+class GpuContext
 {
 public:
-    FV_SINGLETON_IMPL(FairyContext)
-    FV_DELETE_COPY_MOVE(FairyContext)
+    FV_SINGLETON_IMPL(GpuContext)
+    FV_DELETE_COPY_MOVE(GpuContext)
     static void Init();
     static void Quit();
 
@@ -23,8 +23,8 @@ public:
     VmaAllocator allocator;
 
 private:
-    FairyContext();
-    ~FairyContext();
+    GpuContext();
+    ~GpuContext();
 };
 
 } // namespace fv

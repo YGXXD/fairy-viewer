@@ -2,19 +2,19 @@
 
 #include <memory>
 #include <vulkan/vulkan.hpp>
-#include "fairy_viewer.hpp"
+#include "../fairy_viewer.hpp"
 #include "vk_mem_alloc.h"
 
 namespace fv
 {
 
-class FairyTexture
+class GpuTexture
 {
 public:
-    FairyTexture(uint32_t width, uint32_t height, vk::Format image_format, vk::ImageUsageFlags image_usage,
+    GpuTexture(uint32_t width, uint32_t height, vk::Format image_format, vk::ImageUsageFlags image_usage,
                  vk::MemoryPropertyFlags memory_property);
-    FV_DELETE_COPY_MOVE(FairyTexture)
-    ~FairyTexture();
+    FV_DELETE_COPY_MOVE(GpuTexture)
+    ~GpuTexture();
 
     std::unique_ptr<vk::ImageSubresourceLayers> MakeSubresourceLayers() const;
     std::unique_ptr<vk::ImageSubresourceRange> MakeSubresourceRange() const;

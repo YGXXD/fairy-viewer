@@ -2,18 +2,18 @@
 
 #include <memory>
 #include <vulkan/vulkan.hpp>
-#include "fairy_viewer.hpp"
+#include "../fairy_viewer.hpp"
 #include "vk_mem_alloc.h"
 
 namespace fv
 {
 
-class FairyBuffer
+class GpuBuffer
 {
 public:
-    FairyBuffer(size_t size, vk::BufferUsageFlags buffer_usage, vk::MemoryPropertyFlags memory_property);
-    FV_DELETE_COPY_MOVE(FairyBuffer)
-    ~FairyBuffer();
+    GpuBuffer(size_t size, vk::BufferUsageFlags buffer_usage, vk::MemoryPropertyFlags memory_property);
+    FV_DELETE_COPY_MOVE(GpuBuffer)
+    ~GpuBuffer();
 
     vk::UniqueBufferView CreateBufferView(vk::Format buffer_format, VkDeviceSize offset = 0,
                                           VkDeviceSize range = VK_WHOLE_SIZE) const;
