@@ -1,5 +1,6 @@
 #include "fairy_pipeline.hpp"
-#include "render_core/gpu_context.hpp"
+#include "../render_core/gpu_context.hpp"
+#include "../render_core/gpu_buffer.hpp"
 #include "shaders.hpp"
 #include "shaderc/shaderc.hpp"
 
@@ -27,18 +28,28 @@ std::vector<uint32_t> CompileShader(const char* source, size_t source_size, shad
     return std::move(spirv);
 }
 
-FairyPipeline::FairyPipeline(vk::RenderPass render_pass, uint32_t subpass_index)
+FairyPipeline::FairyPipeline(vk::RenderPass render_pass)
 {
+    // create pipeline context
     CreateShaders();
     CreateDescriptorSetLayouts();
     CreateDescriptorPool();
     CreatePipelineLayout();
-    CreatePipeline(render_pass, subpass_index);
+    CreatePipeline(render_pass);
+
+    // create pipeline resource
+    CreateDrawIndices();
+    CreateDrawResource();
+    CreateDescriptSet();
 }
 
 FairyPipeline::~FairyPipeline()
 {
     vk::Device device = GpuContext::Get().device;
+    device.freeDescriptorSets(descriptor_pool_, descriptor_set_);
+    indices_buffer_.reset();
+    i_resolution_buffer_.reset();
+
     device.destroyPipeline(pipeline_);
     device.destroyPipelineLayout(pipeline_layout_);
     device.destroyDescriptorPool(descriptor_pool_);
@@ -46,6 +57,19 @@ FairyPipeline::~FairyPipeline()
         device.destroyDescriptorSetLayout(layout);
     device.destroyShaderModule(vertex_shader_);
     device.destroyShaderModule(fragment_shader_);
+}
+
+void FairyPipeline::Update_iResolution(float x, float y, float z)
+{
+    float* i_resolution = static_cast<float*>(i_resolution_buffer_->HostPointer());
+    i_resolution[0] = x;
+    i_resolution[1] = y;
+    i_resolution[2] = z;
+}
+
+vk::Buffer FairyPipeline::IndexBuffer() const
+{
+    return indices_buffer_->Buffer();
 }
 
 void FairyPipeline::CreateShaders()
@@ -73,15 +97,16 @@ void FairyPipeline::CreateShaders()
             mainImage(outColor, fragCoord);
         }
     )";
-    std::vector<uint32_t> fragment_shader_spirv = CompileShader(source, strlen(source), shaderc_shader_kind::shaderc_glsl_fragment_shader);
+    std::vector<uint32_t> fragment_shader_spirv =
+        CompileShader(source, strlen(source), shaderc_shader_kind::shaderc_glsl_fragment_shader);
 
     vk::ShaderModuleCreateInfo shader_create_info = {};
     shader_create_info.codeSize = shader::fairy_vert_len;
     shader_create_info.pCode = reinterpret_cast<const uint32_t*>(shader::fairy_vert);
     vertex_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
 
-    shader_create_info.codeSize = shader::fairy_frag_len;
-    shader_create_info.pCode = reinterpret_cast<const uint32_t*>(shader::fairy_frag);
+    shader_create_info.codeSize = fragment_shader_spirv.size() * 4;
+    shader_create_info.pCode = fragment_shader_spirv.data();
     fragment_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
 }
 
@@ -119,7 +144,7 @@ void FairyPipeline::CreatePipelineLayout()
     pipeline_layout_ = GpuContext::Get().device.createPipelineLayout(pipeline_layout_create_info);
 }
 
-void FairyPipeline::CreatePipeline(vk::RenderPass render_pass, uint32_t subpass_index)
+void FairyPipeline::CreatePipeline(vk::RenderPass render_pass)
 {
     std::vector<vk::DynamicState> dynamic_states = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
     vk::PipelineDynamicStateCreateInfo dynamic_states_create_info = {};
@@ -190,8 +215,45 @@ void FairyPipeline::CreatePipeline(vk::RenderPass render_pass, uint32_t subpass_
     pipeline_create_info.layout = pipeline_layout_;
     pipeline_create_info.pDynamicState = &dynamic_states_create_info;
     pipeline_create_info.renderPass = render_pass;
-    pipeline_create_info.subpass = subpass_index;
+    pipeline_create_info.subpass = 0;
     pipeline_ = GpuContext::Get().device.createGraphicsPipeline(nullptr, pipeline_create_info).value;
+}
+
+void FairyPipeline::CreateDrawIndices()
+{
+    const uint16_t rect_indices[] = { 0, 1, 2, 1, 3, 2 };
+    indices_type_ = vk::IndexType::eUint16;
+    indices_count_ = sizeof(rect_indices) / sizeof(uint16_t);
+    indices_buffer_ = std::unique_ptr<GpuBuffer>(new GpuBuffer(
+        sizeof(rect_indices), vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
+    memcpy(indices_buffer_->HostPointer(), rect_indices, sizeof(rect_indices));
+}
+
+void FairyPipeline::CreateDrawResource()
+{
+    i_resolution_buffer_ = std::unique_ptr<GpuBuffer>(new GpuBuffer(
+        sizeof(float) * 3, vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
+}
+
+void FairyPipeline::CreateDescriptSet()
+{
+    vk::DescriptorSetAllocateInfo ds_allocate_info = {};
+    ds_allocate_info.pSetLayouts = descriptor_set_layouts_.data();
+    ds_allocate_info.descriptorPool = descriptor_pool_;
+    ds_allocate_info.descriptorSetCount = descriptor_set_layouts_.size();
+    descriptor_set_ = fv::GpuContext::Get().device.allocateDescriptorSets(ds_allocate_info)[0];
+
+    vk::DescriptorBufferInfo i_resolution_buffer_info = {};
+    i_resolution_buffer_info.buffer = i_resolution_buffer_->Buffer();
+    i_resolution_buffer_info.range = VK_WHOLE_SIZE;
+    i_resolution_buffer_info.offset = 0;
+    vk::WriteDescriptorSet write_i_resolution_descriptor_set = {};
+    write_i_resolution_descriptor_set.dstSet = descriptor_set_;
+    write_i_resolution_descriptor_set.dstBinding = 0;
+    write_i_resolution_descriptor_set.descriptorCount = 1;
+    write_i_resolution_descriptor_set.descriptorType = vk::DescriptorType::eUniformBuffer;
+    write_i_resolution_descriptor_set.pBufferInfo = &i_resolution_buffer_info;
+    fv::GpuContext::Get().device.updateDescriptorSets({ write_i_resolution_descriptor_set }, nullptr);
 }
 
 } // namespace fv

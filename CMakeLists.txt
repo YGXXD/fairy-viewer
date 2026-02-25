@@ -19,7 +19,8 @@ set(PROJECT_SOURCE_FILES
 	${CMAKE_SOURCE_DIR}/src/render_core/gpu_context.cpp
 	${CMAKE_SOURCE_DIR}/src/render_core/gpu_buffer.cpp
 	${CMAKE_SOURCE_DIR}/src/render_core/gpu_texture.cpp
-	${CMAKE_SOURCE_DIR}/src/fairy_pipeline.cpp
+	${CMAKE_SOURCE_DIR}/src/render_fairy/fairy_pipeline.cpp
+	${CMAKE_SOURCE_DIR}/src/render_fairy/fairy_surface.cpp
 )
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_FILES})
 
