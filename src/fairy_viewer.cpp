@@ -18,7 +18,7 @@ const int window_height = 720;
 SDL_Window* window;
 SDL_Renderer* renderer;
 SDL_Texture* sdl_image_texture;
-SDL_PixelFormat sdl_fairy_image_format = SDL_PIXELFORMAT_RGBA8888;
+SDL_PixelFormat sdl_fairy_image_format = SDL_PIXELFORMAT_RGBA32;
 SDL_Texture* sdl_fairy_image_texture;
 
 const int fairy_width = 1280;
@@ -171,24 +171,7 @@ void RenderFairy()
     auto _ = fv::GpuContext::Get().device.waitForFences(fairy_fence.get(), true, std::numeric_limits<uint64_t>::max());
     fv::GpuContext::Get().device.resetFences(fairy_fence.get());
 
-    void* dst_pixels;
-    int dst_pitch;
-    if (SDL_LockTexture(sdl_fairy_image_texture, NULL, &dst_pixels, &dst_pitch))
-    {
-        char* src_pixels = static_cast<char*>(cpu_dst_texture->HostPointer());
-        uint32_t* dst_pixels_u32 = static_cast<uint32_t*>(dst_pixels);
-        const SDL_PixelFormatDetails* details = SDL_GetPixelFormatDetails(sdl_fairy_image_format);
-        for (int y = 0; y < fairy_height; ++y)
-        {
-            for (int x = 0; x < fairy_width; ++x)
-            {
-                dst_pixels_u32[y * (dst_pitch / 4) + x] =
-                    SDL_MapRGBA(details, NULL, src_pixels[0], src_pixels[1], src_pixels[2], src_pixels[3]);
-                src_pixels += 4;
-            }
-        }
-        SDL_UnlockTexture(sdl_fairy_image_texture);
-    }
+    SDL_UpdateTexture(sdl_fairy_image_texture, NULL, cpu_dst_texture->HostPointer(), fairy_width * 4);
 }
 
 void DestroyRenderResource()

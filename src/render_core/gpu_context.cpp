@@ -79,7 +79,7 @@ void CreateInstance()
     });
     if (it == available_layers.end())
     {
-        std::cerr << "Vulkan不支持开启InstanceExtension:\n";
+        std::cerr << "vulkan does not support enabling instance extensions:\n";
         std::cerr << "\t" << validation_layers << std::endl;
     }
     instance_create_info.enabledLayerCount = 1;
