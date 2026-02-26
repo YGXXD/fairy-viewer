@@ -4,6 +4,10 @@
 #include "../render_core/gpu_texture.hpp"
 #include "../render_core/gpu_buffer.hpp"
 
+#if defined(FV_DEBUG_ENABLE)
+#    include <iostream>
+#endif
+
 namespace fv
 {
 
@@ -97,8 +101,33 @@ void FairySurface::CreateRenderTarget()
     render_target_ = std::unique_ptr<GpuTexture>(new GpuTexture(
         width_, height_, format_, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
         vk::MemoryPropertyFlagBits::eDeviceLocal));
-    render_target_copy_ = std::unique_ptr<GpuBuffer>(new GpuBuffer(
-        width_ * height_ * 4, vk::BufferUsageFlagBits::eTransferDst, vk::MemoryPropertyFlagBits::eHostVisible));
+
+    uint32_t pixel_size = 0;
+    switch (format_)
+    {
+    case vk::Format::eR8G8B8A8Snorm:
+    case vk::Format::eR8G8B8A8Srgb:
+        pixel_size = 4;
+        break;
+    case vk::Format::eR16G16B16A16Sfloat:
+    case vk::Format::eR16G16B16A16Unorm:
+        pixel_size = 8;
+        break;
+    case vk::Format::eR32G32B32A32Sfloat:
+        pixel_size = 16;
+        break;
+
+    default:
+        break;
+    }
+
+#if defined(FV_DEBUG_ENABLE)
+    if (!pixel_size)
+        std::cerr << "fairy surface not support format!!!" << std::endl;
+#endif
+    render_target_copy_ =
+        std::unique_ptr<GpuBuffer>(new GpuBuffer(width_ * height_ * pixel_size, vk::BufferUsageFlagBits::eTransferDst,
+                                                 vk::MemoryPropertyFlagBits::eHostVisible));
 }
 
 void FairySurface::CreateRenderPass()

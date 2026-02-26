@@ -16,12 +16,12 @@ const int window_height = 720;
 SDL_Window* window;
 SDL_Renderer* renderer;
 SDL_Texture* sdl_image_texture;
-SDL_PixelFormat sdl_fairy_image_format = SDL_PIXELFORMAT_RGBA32;
+SDL_PixelFormat sdl_fairy_image_format = SDL_PIXELFORMAT_RGBA64_FLOAT;
 SDL_Texture* sdl_fairy_image_texture;
 
 const int fairy_surface_width = 1280;
 const int fairy_surface_height = 720;
-const vk::Format fairy_surface_format = vk::Format::eR8G8B8A8Unorm;
+const vk::Format fairy_surface_format = vk::Format::eR16G16B16A16Sfloat;
 std::unique_ptr<fv::FairySurface> fairy_surface;
 std::unique_ptr<fv::FairyPipeline> fairy_pipeline;
 uint64_t fairy_start_time;
@@ -63,7 +63,7 @@ void RenderFairy()
     fairy_pipeline->Update_iDate(i_date);
 
     fairy_surface->Render(fairy_pipeline.get());
-    SDL_UpdateTexture(sdl_fairy_image_texture, NULL, fairy_surface->SurfaceData(), fairy_surface_width * 4);
+    SDL_UpdateTexture(sdl_fairy_image_texture, NULL, fairy_surface->SurfaceData(), fairy_surface_width * 8);
 }
 
 void DestroyFairy()
