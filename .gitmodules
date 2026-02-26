@@ -10,3 +10,6 @@
 [submodule "third_party/vmallocator"]
 	path = third_party/vmallocator
 	url = git@github.com:GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git
+[submodule "third_party/ktm"]
+	path = third_party/ktm
+	url = https://github.com/YGXXD/ktm.git

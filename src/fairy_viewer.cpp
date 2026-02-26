@@ -24,17 +24,44 @@ const int fairy_surface_height = 720;
 const vk::Format fairy_surface_format = vk::Format::eR8G8B8A8Unorm;
 std::unique_ptr<fv::FairySurface> fairy_surface;
 std::unique_ptr<fv::FairyPipeline> fairy_pipeline;
+uint64_t fairy_start_time;
+float i_time;
+float i_time_delta;
+float i_frame_rate;
+int i_frame;
+ktm::fvec4 i_mouse;
+ktm::fvec4 i_date;
 
 void InitFairy()
 {
     fairy_surface = std::unique_ptr<fv::FairySurface>(
         new fv::FairySurface(fairy_surface_width, fairy_surface_height, fairy_surface_format));
     fairy_pipeline = std::unique_ptr<fv::FairyPipeline>(new fv::FairyPipeline(fairy_surface->RenderPass()));
-    fairy_pipeline->Update_iResolution(fairy_surface_width, fairy_surface_height, 1);
+    fairy_start_time = SDL_GetTicks();
+    i_time = 0;
+    float i_time_delta = 0;
+    float i_frame_rate = 0;
+    i_frame = 0;
+    i_mouse = ktm::fvec4 { 0, 0, 0, 0 };
+    i_date = ktm::fvec4 { 0, 0, 0, 0 };
 }
 
 void RenderFairy()
 {
+    uint64_t fairy_current_ticks = SDL_GetTicks() - fairy_start_time;
+    float fairy_current_time = fairy_current_ticks / 1000.f;
+    i_time_delta = fairy_current_time - i_time;
+    i_time = fairy_current_time;
+    i_frame_rate = 1.f / i_time_delta;
+
+    fairy_pipeline->Update_iResolution(ktm::fvec3 { fairy_surface_width, fairy_surface_height, 1 });
+    fairy_pipeline->Update_iTime(i_time);
+    fairy_pipeline->Update_iTimeDelta(i_time_delta);
+    fairy_pipeline->Update_iFrameRate(i_frame_rate);
+    fairy_pipeline->Update_iFrame(i_frame++);
+    fairy_pipeline->Update_iMouse(i_mouse);
+    fairy_pipeline->Update_iDate(i_date);
+
     fairy_surface->Render(fairy_pipeline.get());
     SDL_UpdateTexture(sdl_fairy_image_texture, NULL, fairy_surface->SurfaceData(), fairy_surface_width * 4);
 }
@@ -72,6 +99,8 @@ int main(int argc, char* argv[])
 
     InitFairy();
 
+    float start_time;
+
     bool isAppRun = true;
     SDL_Event event;
     while (isAppRun)
@@ -92,8 +121,8 @@ int main(int argc, char* argv[])
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
         ImGui::ShowDemoWindow(&isAppRun);
-        ImGui::Image(sdl_image_texture, ImVec2(300, 300));
-        ImGui::Image(sdl_fairy_image_texture, ImVec2(640, 360));
+        ImGui::Image(sdl_fairy_image_texture, ImVec2(800, 450));
+        ImGui::Image(sdl_image_texture, ImVec2(200, 200));
         ImGui::Render();
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);

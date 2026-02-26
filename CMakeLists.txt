@@ -24,6 +24,11 @@ set(PROJECT_SOURCE_FILES
 )
 add_executable(${PROJECT_NAME} ${PROJECT_SOURCE_FILES})
 
+# ktm
+add_library(ktm INTERFACE)
+target_include_directories(ktm INTERFACE ${CMAKE_SOURCE_DIR}/third_party/ktm)
+target_link_libraries(${PROJECT_NAME} PUBLIC ktm)
+
 # sdl3
 set(SDL_SHARED ON)
 set(SDL_STATIC OFF)

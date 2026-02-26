@@ -2,12 +2,14 @@
 
 #include <vector>
 #include <vulkan/vulkan.hpp>
+#include "ktm/ktm.h"
 #include "../fairy_viewer.hpp"
 
 namespace fv
 {
 
 class GpuBuffer;
+class GpuTexture;
 class FairyPipeline
 {
 public:
@@ -15,8 +17,17 @@ public:
     FV_DELETE_COPY_MOVE(FairyPipeline)
     ~FairyPipeline();
 
-    // pipeline resource update
-    void Update_iResolution(float x, float y, float z);
+    // update
+    void Update_iResolution(const ktm::fvec3& i_resolution);
+    void Update_iTime(float i_time);
+    void Update_iTimeDelta(float i_time_delta);
+    void Update_iFrameRate(float i_frame_rate);
+    void Update_iFrame(int i_frame);
+    void Update_iChannelTime(int index);
+    void Update_iChannelResolution(int index);
+    void Update_iMouse(const ktm::fvec4& i_mouse);
+    void Update_iChannel(int index);
+    void Update_iDate(const ktm::fvec4& i_date);
 
     // getter
     FV_INLINE vk::PipelineLayout PipelineLayout() const { return pipeline_layout_; }
@@ -24,20 +35,20 @@ public:
 
     vk::Buffer IndexBuffer() const;
     FV_INLINE uint32_t IndexCount() const { return indices_count_; }
-    FV_INLINE vk::DescriptorSet DescriptorSet() const { return descriptor_set_; }
+    FV_INLINE const std::vector<vk::DescriptorSet>& DescriptorSets() const { return descriptor_sets_; }
 
 private:
     // pipeline context
     void CreateShaders();
     void CreateDescriptorSetLayouts();
-    void CreateDescriptorPool();
+    void CreateDescriptorPoolAndSets();
     void CreatePipelineLayout();
     void CreatePipeline(vk::RenderPass render_pass);
 
     // pipeline resource
     void CreateDrawIndices();
     void CreateDrawResource();
-    void CreateDescriptSet();
+    void BindResourceToDescriptSets();
 
     vk::ShaderModule vertex_shader_;
     vk::ShaderModule fragment_shader_;
@@ -45,12 +56,21 @@ private:
     vk::DescriptorPool descriptor_pool_;
     vk::PipelineLayout pipeline_layout_;
     vk::Pipeline pipeline_;
+    std::vector<vk::DescriptorSet> descriptor_sets_;
 
     vk::IndexType indices_type_;
     uint32_t indices_count_;
     std::unique_ptr<GpuBuffer> indices_buffer_;
     std::unique_ptr<GpuBuffer> i_resolution_buffer_;
-    vk::DescriptorSet descriptor_set_;
+    std::unique_ptr<GpuBuffer> i_time_buffer_;
+    std::unique_ptr<GpuBuffer> i_time_delta_buffer_;
+    std::unique_ptr<GpuBuffer> i_frame_rate_buffer_;
+    std::unique_ptr<GpuBuffer> i_frame_buffer_;
+    std::unique_ptr<GpuBuffer> i_channel_time_4_buffer_;
+    std::unique_ptr<GpuBuffer> i_channel_resolution_4_buffer_;
+    std::unique_ptr<GpuBuffer> i_mouse_buffer_;
+    std::unique_ptr<GpuTexture> i_channel_4_texture_[4];
+    std::unique_ptr<GpuBuffer> i_date_buffer_;
 };
 
 } // namespace fv

@@ -57,7 +57,7 @@ void FairySurface::Render(const FairyPipeline* fairy_pipeline)
     command_buffer.setViewport(0, viewport);
     command_buffer.setScissor(0, scissor);
     command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, fairy_pipeline->PipelineLayout(), 0,
-                                      fairy_pipeline->DescriptorSet(), {});
+                                      fairy_pipeline->DescriptorSets(), {});
     command_buffer.bindIndexBuffer(fairy_pipeline->IndexBuffer(), vk::DeviceSize(0), vk::IndexType::eUint16);
     command_buffer.drawIndexed(fairy_pipeline->IndexCount(), 1, 0, 0, 0);
     command_buffer.endRenderPass();
