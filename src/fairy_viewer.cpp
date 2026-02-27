@@ -22,7 +22,7 @@ SDL_Texture* sdl_fairy_image_texture;
 
 const int fairy_surface_width = 1280;
 const int fairy_surface_height = 720;
-const vk::Format fairy_surface_format = vk::Format::eR8G8B8A8Unorm;
+const vk::Format fairy_surface_format = vk::Format::eR8G8B8A8Srgb;
 std::unique_ptr<fv::FairySurface> fairy_surface;
 std::unique_ptr<fv::FairyPipeline> fairy_pipeline;
 uint64_t fairy_start_time;
@@ -99,6 +99,7 @@ int main(int argc, char* argv[])
     SDL_PropertiesID renderer_props = SDL_CreateProperties();
     SDL_SetStringProperty(renderer_props, SDL_PROP_RENDERER_CREATE_NAME_STRING, "vulkan");
     SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_WINDOW_POINTER, window);
+    SDL_SetNumberProperty(renderer_props, SDL_PROP_RENDERER_CREATE_OUTPUT_COLORSPACE_NUMBER, SDL_COLORSPACE_SRGB_LINEAR);
     SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_INSTANCE_POINTER, gpu_context.instance);
     SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_PHYSICAL_DEVICE_POINTER,
                            gpu_context.physical_device);

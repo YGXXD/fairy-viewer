@@ -5,6 +5,7 @@
 #include "shaders.hpp"
 #include "shaderc/shaderc.hpp"
 
+#include <sstream>
 #if defined(FV_DEBUG_ENABLE)
 #    include <iostream>
 #endif
@@ -121,36 +122,17 @@ vk::Buffer FairyPipeline::IndexBuffer() const
 
 void FairyPipeline::CreateShaders()
 {
-    const char* source = R"(
+    std::stringstream glsl_source_builder;
+    const char* source_0 = R"(
         #version 450
 
-        layout(set = 0, binding = 0) uniform input00 {
-            vec3 iResolution;
-        } s0b0;
-
-        layout(set = 0, binding = 1) uniform input01 {
-            float iTime;
-        } s0b1;
-
-        layout(set = 0, binding = 2) uniform input02 {
-            float iTimeDelta;
-        } s0b2;
-
-        layout(set = 0, binding = 3) uniform input03 {
-            float iFrameRate;
-        } s0b3;
-
-        layout(set = 0, binding = 4) uniform input04 {
-            int iFrame;
-        } s0b4;
-
-        layout(set = 0, binding = 5) uniform input05 {
-            vec4 iMouse;
-        } s0b5;
-
-        layout(set = 0, binding = 6) uniform input06 {
-            vec4 iDate;
-        } s0b6;
+        layout(set = 0, binding = 0) uniform input00 { vec3 iResolution; } s0b0;
+        layout(set = 0, binding = 1) uniform input01 { float iTime; } s0b1;
+        layout(set = 0, binding = 2) uniform input02 { float iTimeDelta; } s0b2;
+        layout(set = 0, binding = 3) uniform input03 { float iFrameRate; } s0b3;
+        layout(set = 0, binding = 4) uniform input04 { int iFrame; } s0b4;
+        layout(set = 0, binding = 5) uniform input05 { vec4 iMouse; } s0b5;
+        layout(set = 0, binding = 6) uniform input06 { vec4 iDate; } s0b6;
 
         vec3 iResolution = s0b0.iResolution;
         float iTime = s0b1.iTime;
@@ -159,7 +141,16 @@ void FairyPipeline::CreateShaders()
         int iFrame = s0b4.iFrame;
         vec4 iMouse = s0b5.iMouse;
         vec4 iDate = s0b6.iDate;
-
+    )";
+    const char* source_1 = R"(
+        layout(location = 0) out vec4 outColor;
+        void main()
+        {
+            vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
+            mainImage(outColor, fragCoord);
+        }
+    )";
+    const char* source_body = R"(
         void mainImage( out vec4 fragColor, in vec2 fragCoord )
         {
             // Normalized pixel coordinates (from 0 to 1)
@@ -171,17 +162,11 @@ void FairyPipeline::CreateShaders()
             // Output to screen
             fragColor = vec4(col,1.0);
         }
-
-        layout(location = 0) out vec4 outColor;
-
-        void main() 
-        {
-            vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
-            mainImage(outColor, fragCoord);
-        }
     )";
+    glsl_source_builder << source_0 << source_body << source_1 << std::endl;
+    std::string glsl_source = glsl_source_builder.str();
     std::vector<uint32_t> fragment_shader_spirv =
-        CompileShader(source, strlen(source), shaderc_shader_kind::shaderc_glsl_fragment_shader);
+        CompileShader(glsl_source.c_str(), glsl_source.size(), shaderc_shader_kind::shaderc_glsl_fragment_shader);
 
     vk::ShaderModuleCreateInfo shader_create_info = {};
     shader_create_info.codeSize = shader::fairy_vert_len;

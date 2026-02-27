@@ -27,7 +27,7 @@ std::vector<const char*> instance_extension_names_ = {
 #elif defined(FV_PLATFORM_WINDOWS)
     "VK_KHR_win32_surface",
 #endif
-    "VK_KHR_get_physical_device_properties2"
+    "VK_KHR_get_physical_device_properties2", "VK_EXT_swapchain_colorspace"
 };
 std::vector<const char*> device_extension_names_ = { "VK_KHR_create_renderpass2",
 #if defined(FV_PLATFORM_APPLE)
