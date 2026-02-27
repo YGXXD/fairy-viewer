@@ -18,16 +18,16 @@ public:
     FV_DELETE_COPY_MOVE(FairySurface)
     ~FairySurface();
 
-    void Render(const FairyPipeline* fairy_pipeline);
-
-    const void* SurfaceData() const;
+    void Render(const FairyPipeline* fairy_pipeline, vk::Semaphore& out_signal_semaphore);
+    FV_INLINE const GpuTexture* RenderTarget() const { return render_target_.get(); };
     FV_INLINE vk::RenderPass RenderPass() const { return render_pass_; }
 
 private:
     void CreateRenderTarget();
     void CreateRenderPass();
     void CreateFramebuffer();
-    void CreateFence();
+    void CreateSubmitResource();
+    void WaitFenceIfNeeded();
 
     uint32_t width_;
     uint32_t height_;
@@ -36,8 +36,10 @@ private:
     std::unique_ptr<GpuTexture> render_target_;
     vk::RenderPass render_pass_;
     vk::Framebuffer framebuffer_;
-    std::unique_ptr<GpuBuffer> render_target_copy_;
 
+    vk::CommandBuffer render_command_buffer_;
+    vk::Semaphore render_signal_semaphore_;
+    bool need_wait_render_fence_;
     vk::Fence render_fence_;
 };
 

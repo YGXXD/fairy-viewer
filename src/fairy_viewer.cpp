@@ -7,6 +7,7 @@
 #include "backends/imgui_impl_sdlrenderer3.h"
 
 #include "render_core/gpu_context.hpp"
+#include "render_core/gpu_texture.hpp"
 #include "render_fairy/fairy_surface.hpp"
 #include "render_fairy/fairy_pipeline.hpp"
 
@@ -16,12 +17,12 @@ const int window_height = 720;
 SDL_Window* window;
 SDL_Renderer* renderer;
 SDL_Texture* sdl_image_texture;
-SDL_PixelFormat sdl_fairy_image_format = SDL_PIXELFORMAT_RGBA64_FLOAT;
+SDL_PixelFormat sdl_fairy_image_format = SDL_PIXELFORMAT_RGBA32;
 SDL_Texture* sdl_fairy_image_texture;
 
 const int fairy_surface_width = 1280;
 const int fairy_surface_height = 720;
-const vk::Format fairy_surface_format = vk::Format::eR16G16B16A16Sfloat;
+const vk::Format fairy_surface_format = vk::Format::eR8G8B8A8Unorm;
 std::unique_ptr<fv::FairySurface> fairy_surface;
 std::unique_ptr<fv::FairyPipeline> fairy_pipeline;
 uint64_t fairy_start_time;
@@ -44,6 +45,17 @@ void InitFairy()
     i_frame = 0;
     i_mouse = ktm::fvec4 { 0, 0, 0, 0 };
     i_date = ktm::fvec4 { 0, 0, 0, 0 };
+
+    SDL_PropertiesID texture_props = SDL_CreateProperties();
+    VkImage fairy_surface_image = fairy_surface->RenderTarget()->Image();
+    SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, fairy_surface_width);
+    SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, fairy_surface_height);
+    SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER, sdl_fairy_image_format);
+    SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_VULKAN_TEXTURE_NUMBER,
+                          reinterpret_cast<Sint64>(fairy_surface_image));
+    sdl_fairy_image_texture = SDL_CreateTextureWithProperties(renderer, texture_props);
+    SDL_DestroyProperties(texture_props);
+    SDL_SetTextureBlendMode(sdl_fairy_image_texture, SDL_BLENDMODE_NONE);
 }
 
 void RenderFairy()
@@ -62,12 +74,15 @@ void RenderFairy()
     fairy_pipeline->Update_iMouse(i_mouse);
     fairy_pipeline->Update_iDate(i_date);
 
-    fairy_surface->Render(fairy_pipeline.get());
-    SDL_UpdateTexture(sdl_fairy_image_texture, NULL, fairy_surface->SurfaceData(), fairy_surface_width * 8);
+    vk::Semaphore signal_semaphore;
+    fairy_surface->Render(fairy_pipeline.get(), signal_semaphore);
+    SDL_AddVulkanRenderSemaphores(renderer, static_cast<Uint32>(vk::PipelineStageFlagBits::eFragmentShader),
+                                  reinterpret_cast<Sint64>(VkSemaphore { signal_semaphore }), 0);
 }
 
 void DestroyFairy()
 {
+    SDL_DestroyTexture(sdl_fairy_image_texture);
     fairy_pipeline.reset();
     fairy_surface.reset();
 }
@@ -80,21 +95,33 @@ int main(int argc, char* argv[])
     window = SDL_CreateWindow(title, window_width, window_height, SDL_WINDOW_RESIZABLE);
     SDL_ShowWindow(window);
 
-    renderer = SDL_CreateRenderer(window, nullptr);
+    fv::GpuContext& gpu_context = fv::GpuContext::Get();
+    SDL_PropertiesID renderer_props = SDL_CreateProperties();
+    SDL_SetStringProperty(renderer_props, SDL_PROP_RENDERER_CREATE_NAME_STRING, "vulkan");
+    SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_WINDOW_POINTER, window);
+    SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_INSTANCE_POINTER, gpu_context.instance);
+    SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_PHYSICAL_DEVICE_POINTER,
+                           gpu_context.physical_device);
+    SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_DEVICE_POINTER, gpu_context.device);
+    SDL_SetNumberProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_GRAPHICS_QUEUE_FAMILY_INDEX_NUMBER, 0);
+    SDL_SetNumberProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_NUMBER, 0);
+    renderer = SDL_CreateRendererWithProperties(renderer_props);
+    if (renderer == nullptr)
+        std::cerr << SDL_GetError() << std::endl;
+
     SDL_IOStream* png_io = SDL_IOFromFile(ASSETS_PATH "nfl.png", "rb");
     SDL_Surface* surface = IMG_LoadPNG_IO(png_io);
     SDL_CloseIO(png_io);
     sdl_image_texture = SDL_CreateTextureFromSurface(renderer, surface);
     SDL_DestroySurface(surface);
-    sdl_fairy_image_texture = SDL_CreateTexture(renderer, sdl_fairy_image_format, SDL_TEXTUREACCESS_STREAMING,
-                                                fairy_surface_width, fairy_surface_height);
+
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui_ImplSDL3_InitForSDLRenderer(window, renderer);
     ImGui_ImplSDLRenderer3_Init(renderer);
 
-    SDL_SetRenderDrawColorFloat(renderer, 0.5f, 0.5f, 0.2f, 1.0f);
+    SDL_SetRenderDrawColorFloat(renderer, 0.f, 0.f, 0.f, 1.0f);
     SDL_SetRenderScale(renderer, io.DisplayFramebufferScale.x, io.DisplayFramebufferScale.y);
 
     InitFairy();
@@ -117,6 +144,7 @@ int main(int argc, char* argv[])
         RenderFairy();
 
         SDL_RenderClear(renderer);
+        SDL_RenderTexture(renderer, sdl_fairy_image_texture, nullptr, nullptr);
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
@@ -133,7 +161,7 @@ int main(int argc, char* argv[])
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
     SDL_DestroyTexture(sdl_image_texture);
-    SDL_DestroyTexture(sdl_fairy_image_texture);
+    SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     fv::GpuContext::Quit();
     SDL_Quit();

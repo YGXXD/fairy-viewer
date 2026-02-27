@@ -2,11 +2,6 @@
 #include "fairy_pipeline.hpp"
 #include "../render_core/gpu_context.hpp"
 #include "../render_core/gpu_texture.hpp"
-#include "../render_core/gpu_buffer.hpp"
-
-#if defined(FV_DEBUG_ENABLE)
-#    include <iostream>
-#endif
 
 namespace fv
 {
@@ -17,35 +12,28 @@ FairySurface::FairySurface(uint32_t width, uint32_t height, vk::Format format)
     CreateRenderTarget();
     CreateRenderPass();
     CreateFramebuffer();
-    CreateFence();
+    CreateSubmitResource();
 }
 
 FairySurface::~FairySurface()
 {
     GpuContext& gpu_context = GpuContext::Get();
-    gpu_context.device.destroy(render_fence_);
+    gpu_context.device.freeCommandBuffers(gpu_context.command_pool, render_command_buffer_);
+    gpu_context.device.destroySemaphore(render_signal_semaphore_);
+    gpu_context.device.destroyFence(render_fence_);
     gpu_context.device.destroyFramebuffer(framebuffer_);
     gpu_context.device.destroyRenderPass(render_pass_);
-    render_target_.reset();
-    render_target_copy_.reset();
 }
 
-void FairySurface::Render(const FairyPipeline* fairy_pipeline)
+void FairySurface::Render(const FairyPipeline* fairy_pipeline, vk::Semaphore& out_signal_semaphore)
 {
+    WaitFenceIfNeeded();
     GpuContext& gpu_context = GpuContext::Get();
-    vk::CommandBufferAllocateInfo command_buffer_allocate_info = {};
-    command_buffer_allocate_info.commandPool = gpu_context.command_pool;
-    command_buffer_allocate_info.level = vk::CommandBufferLevel::ePrimary;
-    command_buffer_allocate_info.commandBufferCount = 1;
-
-    vk::UniqueCommandBuffer command_buffer_up =
-        std::move(gpu_context.device.allocateCommandBuffersUnique(command_buffer_allocate_info)[0]);
-    vk::CommandBuffer command_buffer = command_buffer_up.get();
-    command_buffer.reset();
+    render_command_buffer_.reset();
 
     vk::CommandBufferBeginInfo begin_info = {};
     begin_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-    command_buffer.begin(begin_info);
+    render_command_buffer_.begin(begin_info);
     vk::ClearValue clear_value = {};
     vk::RenderPassBeginInfo render_pass_begin_info = {};
     render_pass_begin_info.framebuffer = framebuffer_;
@@ -54,80 +42,36 @@ void FairySurface::Render(const FairyPipeline* fairy_pipeline)
     render_pass_begin_info.renderArea.extent = vk::Extent2D(width_, height_);
     render_pass_begin_info.clearValueCount = 1;
     render_pass_begin_info.pClearValues = &clear_value;
-    command_buffer.beginRenderPass(render_pass_begin_info, vk::SubpassContents::eInline);
-    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, fairy_pipeline->Pipeline());
+    render_command_buffer_.beginRenderPass(render_pass_begin_info, vk::SubpassContents::eInline);
+    render_command_buffer_.bindPipeline(vk::PipelineBindPoint::eGraphics, fairy_pipeline->Pipeline());
     vk::Viewport viewport = { 0.f, 0.f, static_cast<float>(width_), static_cast<float>(height_), 0.f, 1.f };
     vk::Rect2D scissor = { vk::Offset2D(0.f, 0.f), vk::Extent2D(width_, height_) };
-    command_buffer.setViewport(0, viewport);
-    command_buffer.setScissor(0, scissor);
-    command_buffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, fairy_pipeline->PipelineLayout(), 0,
-                                      fairy_pipeline->DescriptorSets(), {});
-    command_buffer.bindIndexBuffer(fairy_pipeline->IndexBuffer(), vk::DeviceSize(0), vk::IndexType::eUint16);
-    command_buffer.drawIndexed(fairy_pipeline->IndexCount(), 1, 0, 0, 0);
-    command_buffer.endRenderPass();
-    // vk::ImageMemoryBarrier render_target_image_barrier = {};
-    // render_target_image_barrier.srcAccessMask = vk::AccessFlagBits::eNone;
-    // render_target_image_barrier.dstAccessMask = vk::AccessFlagBits::eTransferRead;
-    // render_target_image_barrier.oldLayout = vk::ImageLayout::ePresentSrcKHR;
-    // render_target_image_barrier.newLayout = vk::ImageLayout::eTransferSrcOptimal;
-    // render_target_image_barrier.image = render_target_texture->Image();
-    // render_target_image_barrier.subresourceRange = *render_target_texture->MakeSubresourceRange();
-    // command_buffer.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput,
-    //                                vk::PipelineStageFlagBits::eTransfer, static_cast<vk::DependencyFlags>(0), {}, {},
-    //                                render_target_image_barrier);
-    vk::BufferImageCopy copy_region = {};
-    copy_region.imageSubresource = *render_target_->MakeSubresourceLayers();
-    copy_region.imageOffset = vk::Offset3D(0, 0, 0);
-    copy_region.imageExtent = vk::Extent3D(width_, height_, 1);
-    command_buffer.copyImageToBuffer(render_target_->Image(), vk::ImageLayout::eTransferSrcOptimal,
-                                     render_target_copy_->Buffer(), 1, &copy_region);
-    command_buffer.end();
+    render_command_buffer_.setViewport(0, viewport);
+    render_command_buffer_.setScissor(0, scissor);
+    render_command_buffer_.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, fairy_pipeline->PipelineLayout(), 0,
+                                              fairy_pipeline->DescriptorSets(), {});
+    render_command_buffer_.bindIndexBuffer(fairy_pipeline->IndexBuffer(), vk::DeviceSize(0), vk::IndexType::eUint16);
+    render_command_buffer_.drawIndexed(fairy_pipeline->IndexCount(), 1, 0, 0, 0);
+    render_command_buffer_.endRenderPass();
+    render_command_buffer_.end();
 
     vk::SubmitInfo submit_info = {};
     submit_info.commandBufferCount = 1;
-    submit_info.pCommandBuffers = &command_buffer;
+    submit_info.pCommandBuffers = &render_command_buffer_;
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = &render_signal_semaphore_;
     gpu_context.queue.submit(submit_info, render_fence_);
-    auto _ = gpu_context.device.waitForFences(render_fence_, true, std::numeric_limits<uint64_t>::max());
-    gpu_context.device.resetFences(render_fence_);
-}
-
-const void* FairySurface::SurfaceData() const
-{
-    return render_target_copy_->HostPointer();
+    need_wait_render_fence_ = true;
+    out_signal_semaphore = render_signal_semaphore_;
 }
 
 void FairySurface::CreateRenderTarget()
 {
-    render_target_ = std::unique_ptr<GpuTexture>(new GpuTexture(
-        width_, height_, format_, vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc,
-        vk::MemoryPropertyFlagBits::eDeviceLocal));
-
-    uint32_t pixel_size = 0;
-    switch (format_)
-    {
-    case vk::Format::eR8G8B8A8Snorm:
-    case vk::Format::eR8G8B8A8Srgb:
-        pixel_size = 4;
-        break;
-    case vk::Format::eR16G16B16A16Sfloat:
-    case vk::Format::eR16G16B16A16Unorm:
-        pixel_size = 8;
-        break;
-    case vk::Format::eR32G32B32A32Sfloat:
-        pixel_size = 16;
-        break;
-
-    default:
-        break;
-    }
-
-#if defined(FV_DEBUG_ENABLE)
-    if (!pixel_size)
-        std::cerr << "fairy surface not support format!!!" << std::endl;
-#endif
-    render_target_copy_ =
-        std::unique_ptr<GpuBuffer>(new GpuBuffer(width_ * height_ * pixel_size, vk::BufferUsageFlagBits::eTransferDst,
-                                                 vk::MemoryPropertyFlagBits::eHostVisible));
+    render_target_ = std::unique_ptr<GpuTexture>(new GpuTexture(width_, height_, format_,
+                                                                vk::ImageUsageFlagBits::eColorAttachment |
+                                                                    vk::ImageUsageFlagBits::eTransferSrc |
+                                                                    vk::ImageUsageFlagBits::eSampled,
+                                                                vk::MemoryPropertyFlagBits::eDeviceLocal));
 }
 
 void FairySurface::CreateRenderPass()
@@ -140,7 +84,7 @@ void FairySurface::CreateRenderPass()
     color_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
     color_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
     color_attachment.initialLayout = vk::ImageLayout::eUndefined;
-    color_attachment.finalLayout = vk::ImageLayout::eTransferSrcOptimal;
+    color_attachment.finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
     vk::AttachmentReference color_attachment_ref = {};
     color_attachment_ref.attachment = 0;
     color_attachment_ref.layout = vk::ImageLayout::eColorAttachmentOptimal;
@@ -169,9 +113,27 @@ void FairySurface::CreateFramebuffer()
     framebuffer_ = GpuContext::Get().device.createFramebuffer(frame_buffer_create_info);
 }
 
-void FairySurface::CreateFence()
+void FairySurface::CreateSubmitResource()
 {
-    render_fence_ = GpuContext::Get().device.createFence(vk::FenceCreateInfo());
+    GpuContext& gpu_context = GpuContext::Get();
+    vk::CommandBufferAllocateInfo command_buffer_allocate_info = {};
+    command_buffer_allocate_info.commandPool = gpu_context.command_pool;
+    command_buffer_allocate_info.level = vk::CommandBufferLevel::ePrimary;
+    command_buffer_allocate_info.commandBufferCount = 1;
+    render_command_buffer_ = gpu_context.device.allocateCommandBuffers(command_buffer_allocate_info)[0];
+    render_signal_semaphore_ = gpu_context.device.createSemaphore(vk::SemaphoreCreateInfo());
+    render_fence_ = gpu_context.device.createFence(vk::FenceCreateInfo());
+}
+
+void FairySurface::WaitFenceIfNeeded()
+{
+    if (need_wait_render_fence_)
+    {
+        GpuContext& gpu_context = GpuContext::Get();
+        auto _ = gpu_context.device.waitForFences(render_fence_, true, std::numeric_limits<uint64_t>::max());
+        gpu_context.device.resetFences(render_fence_);
+        need_wait_render_fence_ = false;
+    } 
 }
 
 } // namespace fv
