@@ -60,6 +60,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     fragColor = vec4(col,1.0);
 })";
 TextEditor shader_editor;
+bool pipeline_reset_status;
 
 float fps;
 float fps_curr_time;
@@ -69,7 +70,7 @@ void ResetPipeline()
 {
     std::string codes = shader_editor.GetText();
     fairy_surface->WaitGpuIfNeeded();
-    fairy_pipeline->Reset(fairy_surface->RenderPass(), codes);
+    pipeline_reset_status = fairy_pipeline->Reset(fairy_surface->RenderPass(), codes);
     fairy_start_time = SDL_GetTicks();
     i_time = 0;
     float i_time_delta = 0;
@@ -153,11 +154,19 @@ void ShowFairyWindow()
 {
     ImGui::Begin("fairy");
     ImGui::Image(sdl_fairy_image_texture, ImVec2(800, 450));
+    if (!pipeline_reset_status)
+    {
+        ImVec2 curr_cursor_pos = ImGui::GetCursorPos();
+        ImGui::SetCursorPos(ImVec2(20, 40));
+        ImGui::TextWrapped("log error:\n%s", fairy_pipeline->ResetErrorMessage().c_str());
+        ImGui::SetCursorPos(curr_cursor_pos);
+    }
     ImGui::Text("time: %.2f s", i_time);
     ImGui::SameLine(0, 30);
     ImGui::Text("fps: %.1f", fps);
     ImGui::SameLine(0, 30);
     ImGui::Text("frame: %d", i_frame);
+    
     ImGui::End();
 }
 

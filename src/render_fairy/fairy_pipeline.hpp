@@ -29,8 +29,9 @@ public:
     void Update_iChannel(int index);
     void Update_iDate(const ktm::fvec4& i_date);
 
-    // reset pipeline
-    void Reset(vk::RenderPass render_pass, const std::string& shader);
+    // reset
+    bool Reset(vk::RenderPass render_pass, const std::string& shader);
+    FV_INLINE const std::string& ResetErrorMessage() const { return reset_error_message_; }
 
     // getter
     FV_INLINE vk::PipelineLayout PipelineLayout() const { return pipeline_layout_; }
@@ -46,7 +47,7 @@ private:
     void CreateDescriptorPoolAndSets();
     void CreatePipelineLayout();
     void CreateVertexShader();
-    void CreateFragmentShader(const std::string& shader);
+    bool CreateFragmentShader(const std::string& shader);
     void CreatePipeline(vk::RenderPass render_pass);
     void ClearFragmentShaderAndPipeline();
 
@@ -76,6 +77,8 @@ private:
     std::unique_ptr<GpuBuffer> i_mouse_buffer_;
     std::unique_ptr<GpuTexture> i_channel_4_texture_[4];
     std::unique_ptr<GpuBuffer> i_date_buffer_;
+
+    std::string reset_error_message_;
 };
 
 } // namespace fv

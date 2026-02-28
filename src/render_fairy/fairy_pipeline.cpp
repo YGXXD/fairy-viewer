@@ -13,7 +13,8 @@
 namespace fv
 {
 
-std::vector<uint32_t> CompileShader(const char* source, size_t source_size, shaderc_shader_kind kind)
+bool CompileShader(const char* source, size_t source_size, shaderc_shader_kind kind, std::vector<uint32_t>& out_spirv,
+                   std::string& error_message)
 {
     shaderc::Compiler compiler;
     shaderc::CompileOptions options;
@@ -24,10 +25,12 @@ std::vector<uint32_t> CompileShader(const char* source, size_t source_size, shad
 #if defined(FV_DEBUG_ENABLE)
         std::cerr << "failed to compile shader: " << module.GetErrorMessage() << std::endl;
 #endif
-        return {};
+        error_message = module.GetErrorMessage();
+        return false;
     }
-    std::vector<uint32_t> spirv = { module.cbegin(), module.cend() };
-    return std::move(spirv);
+    error_message = "";
+    out_spirv = { module.cbegin(), module.cend() };
+    return true;
 }
 
 FairyPipeline::FairyPipeline()
@@ -113,11 +116,12 @@ void FairyPipeline::Update_iDate(const ktm::fvec4& i_date)
     *i_date_ptr = i_date;
 }
 
-void FairyPipeline::Reset(vk::RenderPass render_pass, const std::string& shader)
+bool FairyPipeline::Reset(vk::RenderPass render_pass, const std::string& shader)
 {
     ClearFragmentShaderAndPipeline();
-    CreateFragmentShader(shader);
+    bool compile_success = CreateFragmentShader(shader);
     CreatePipeline(render_pass);
+    return compile_success;
 }
 
 vk::Buffer FairyPipeline::IndexBuffer() const
@@ -203,7 +207,7 @@ void FairyPipeline::CreateVertexShader()
     vertex_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
 }
 
-void FairyPipeline::CreateFragmentShader(const std::string& shader)
+bool FairyPipeline::CreateFragmentShader(const std::string& shader)
 {
     std::stringstream glsl_source_builder;
     const char* define = R"(
@@ -234,23 +238,29 @@ void FairyPipeline::CreateFragmentShader(const std::string& shader)
             mainImage(fragColor, fragCoord);
             outColor = vec4(fragColor.xyz, 1.0);
         }
+        #line 1
     )";
     glsl_source_builder << define << shader << std::endl;
     std::string glsl_source = glsl_source_builder.str();
-    std::vector<uint32_t> fragment_shader_spirv =
-        CompileShader(glsl_source.c_str(), glsl_source.size(), shaderc_shader_kind::shaderc_glsl_fragment_shader);
-    vk::ShaderModuleCreateInfo shader_create_info = {};
-    if (!fragment_shader_spirv.empty())
+    std::vector<uint32_t> fragment_shader_spirv;
+
+    if (CompileShader(glsl_source.c_str(), glsl_source.size(), shaderc_shader_kind::shaderc_glsl_fragment_shader,
+                      fragment_shader_spirv, reset_error_message_))
     {
+        vk::ShaderModuleCreateInfo shader_create_info = {};
         shader_create_info.codeSize = fragment_shader_spirv.size() * 4;
         shader_create_info.pCode = fragment_shader_spirv.data();
+        fragment_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
+        return true;
     }
     else
     {
+        vk::ShaderModuleCreateInfo shader_create_info = {};
         shader_create_info.codeSize = shader::fairy_frag_len;
         shader_create_info.pCode = reinterpret_cast<const uint32_t*>(shader::fairy_frag);
+        fragment_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
+        return false;
     }
-    fragment_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
 }
 
 void FairyPipeline::CreatePipeline(vk::RenderPass render_pass)
