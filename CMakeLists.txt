@@ -47,7 +47,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC SDL3_image-shared)
 
 # imgui
 set(IMGUI_SOURCE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
-add_library(ImGui STATIC
+add_library(ImGui SHARED
 	${IMGUI_SOURCE_DIR}/imgui.cpp
 	${IMGUI_SOURCE_DIR}/imgui_draw.cpp
 	${IMGUI_SOURCE_DIR}/imgui_widgets.cpp
@@ -59,6 +59,15 @@ add_library(ImGui STATIC
 target_link_libraries(ImGui PUBLIC SDL3-shared)
 target_include_directories(ImGui PUBLIC ${IMGUI_SOURCE_DIR})
 target_link_libraries(${PROJECT_NAME} PUBLIC ImGui)
+
+# imgui_colortextedit
+set(IMGUI_COLORTEXTEDIT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui_colortextedit)
+add_library(ImGuiColorTextEdit STATIC
+	${IMGUI_COLORTEXTEDIT_SOURCE_DIR}/TextEditor.cpp
+)
+target_link_libraries(ImGuiColorTextEdit PUBLIC ImGui)
+target_include_directories(ImGuiColorTextEdit PUBLIC ${IMGUI_COLORTEXTEDIT_SOURCE_DIR})
+target_link_libraries(${PROJECT_NAME} PUBLIC ImGuiColorTextEdit)
 
 # vulkan
 find_package(Vulkan REQUIRED)

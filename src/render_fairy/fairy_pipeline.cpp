@@ -30,14 +30,13 @@ std::vector<uint32_t> CompileShader(const char* source, size_t source_size, shad
     return std::move(spirv);
 }
 
-FairyPipeline::FairyPipeline(vk::RenderPass render_pass)
+FairyPipeline::FairyPipeline()
 {
     // create pipeline context
-    CreateShaders();
     CreateDescriptorSetLayouts();
     CreateDescriptorPoolAndSets();
     CreatePipelineLayout();
-    CreatePipeline(render_pass);
+    CreateVertexShader();
 
     // create pipeline resource
     CreateDrawIndices();
@@ -47,15 +46,14 @@ FairyPipeline::FairyPipeline(vk::RenderPass render_pass)
 
 FairyPipeline::~FairyPipeline()
 {
+    ClearFragmentShaderAndPipeline();
     vk::Device device = GpuContext::Get().device;
-    device.destroyPipeline(pipeline_);
+    device.destroyShaderModule(vertex_shader_);
     device.destroyPipelineLayout(pipeline_layout_);
     device.freeDescriptorSets(descriptor_pool_, descriptor_sets_);
     device.destroyDescriptorPool(descriptor_pool_);
     for (auto layout : descriptor_set_layouts_)
         device.destroyDescriptorSetLayout(layout);
-    device.destroyShaderModule(vertex_shader_);
-    device.destroyShaderModule(fragment_shader_);
 }
 
 void FairyPipeline::Update_iResolution(const ktm::fvec3& i_resolution)
@@ -115,69 +113,16 @@ void FairyPipeline::Update_iDate(const ktm::fvec4& i_date)
     *i_date_ptr = i_date;
 }
 
+void FairyPipeline::Reset(vk::RenderPass render_pass, const std::string& shader)
+{
+    ClearFragmentShaderAndPipeline();
+    CreateFragmentShader(shader);
+    CreatePipeline(render_pass);
+}
+
 vk::Buffer FairyPipeline::IndexBuffer() const
 {
     return indices_buffer_->Buffer();
-}
-
-void FairyPipeline::CreateShaders()
-{
-    std::stringstream glsl_source_builder;
-    const char* source_0 = R"(
-        #version 450
-
-        layout(set = 0, binding = 0) uniform input00 { vec3 iResolution; } s0b0;
-        layout(set = 0, binding = 1) uniform input01 { float iTime; } s0b1;
-        layout(set = 0, binding = 2) uniform input02 { float iTimeDelta; } s0b2;
-        layout(set = 0, binding = 3) uniform input03 { float iFrameRate; } s0b3;
-        layout(set = 0, binding = 4) uniform input04 { int iFrame; } s0b4;
-        layout(set = 0, binding = 5) uniform input05 { vec4 iMouse; } s0b5;
-        layout(set = 0, binding = 6) uniform input06 { vec4 iDate; } s0b6;
-
-        vec3 iResolution = s0b0.iResolution;
-        float iTime = s0b1.iTime;
-        float iTimeDelta = s0b2.iTimeDelta;
-        float iFrameRate = s0b3.iFrameRate;
-        int iFrame = s0b4.iFrame;
-        vec4 iMouse = s0b5.iMouse;
-        vec4 iDate = s0b6.iDate;
-    )";
-    const char* source_1 = R"(
-        layout(location = 0) out vec4 outColor;
-        void main()
-        {
-            vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
-            vec4 fragColor = vec4(0.0);
-            mainImage(fragColor, fragCoord);
-            outColor = vec4(fragColor.xyz, 1.0);
-        }
-    )";
-    const char* source_body = R"(
-        void mainImage( out vec4 fragColor, in vec2 fragCoord )
-        {
-            // Normalized pixel coordinates (from 0 to 1)
-            vec2 uv = fragCoord/iResolution.xy;
-
-            // Time varying pixel color
-            vec3 col = 0.5 + 0.5*cos(iTime+uv.xyx+vec3(0,2,4));
-
-            // Output to screen
-            fragColor = vec4(col,1.0);
-        }
-    )";
-    glsl_source_builder << source_0 << source_body << source_1 << std::endl;
-    std::string glsl_source = glsl_source_builder.str();
-    std::vector<uint32_t> fragment_shader_spirv =
-        CompileShader(glsl_source.c_str(), glsl_source.size(), shaderc_shader_kind::shaderc_glsl_fragment_shader);
-
-    vk::ShaderModuleCreateInfo shader_create_info = {};
-    shader_create_info.codeSize = shader::fairy_vert_len;
-    shader_create_info.pCode = reinterpret_cast<const uint32_t*>(shader::fairy_vert);
-    vertex_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
-
-    shader_create_info.codeSize = fragment_shader_spirv.size() * 4;
-    shader_create_info.pCode = fragment_shader_spirv.data();
-    fragment_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
 }
 
 void FairyPipeline::CreateDescriptorSetLayouts()
@@ -248,6 +193,64 @@ void FairyPipeline::CreatePipelineLayout()
     pipeline_layout_create_info.setLayoutCount = descriptor_set_layouts_.size();
     pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts_.data();
     pipeline_layout_ = GpuContext::Get().device.createPipelineLayout(pipeline_layout_create_info);
+}
+
+void FairyPipeline::CreateVertexShader()
+{
+    vk::ShaderModuleCreateInfo shader_create_info = {};
+    shader_create_info.codeSize = shader::fairy_vert_len;
+    shader_create_info.pCode = reinterpret_cast<const uint32_t*>(shader::fairy_vert);
+    vertex_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
+}
+
+void FairyPipeline::CreateFragmentShader(const std::string& shader)
+{
+    std::stringstream glsl_source_builder;
+    const char* define = R"(
+        #version 450
+
+        layout(location = 0) out vec4 outColor;
+        layout(set = 0, binding = 0) uniform input00 { vec3 iResolution; } s0b0;
+        layout(set = 0, binding = 1) uniform input01 { float iTime; } s0b1;
+        layout(set = 0, binding = 2) uniform input02 { float iTimeDelta; } s0b2;
+        layout(set = 0, binding = 3) uniform input03 { float iFrameRate; } s0b3;
+        layout(set = 0, binding = 4) uniform input04 { int iFrame; } s0b4;
+        layout(set = 0, binding = 5) uniform input05 { vec4 iMouse; } s0b5;
+        layout(set = 0, binding = 6) uniform input06 { vec4 iDate; } s0b6;
+
+        vec3 iResolution = s0b0.iResolution;
+        float iTime = s0b1.iTime;
+        float iTimeDelta = s0b2.iTimeDelta;
+        float iFrameRate = s0b3.iFrameRate;
+        int iFrame = s0b4.iFrame;
+        vec4 iMouse = s0b5.iMouse;
+        vec4 iDate = s0b6.iDate;
+
+        void mainImage( out vec4 fragColor, in vec2 fragCoord );
+        void main()
+        {
+            vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
+            vec4 fragColor = vec4(0.0);
+            mainImage(fragColor, fragCoord);
+            outColor = vec4(fragColor.xyz, 1.0);
+        }
+    )";
+    glsl_source_builder << define << shader << std::endl;
+    std::string glsl_source = glsl_source_builder.str();
+    std::vector<uint32_t> fragment_shader_spirv =
+        CompileShader(glsl_source.c_str(), glsl_source.size(), shaderc_shader_kind::shaderc_glsl_fragment_shader);
+    vk::ShaderModuleCreateInfo shader_create_info = {};
+    if (!fragment_shader_spirv.empty())
+    {
+        shader_create_info.codeSize = fragment_shader_spirv.size() * 4;
+        shader_create_info.pCode = fragment_shader_spirv.data();
+    }
+    else
+    {
+        shader_create_info.codeSize = shader::fairy_frag_len;
+        shader_create_info.pCode = reinterpret_cast<const uint32_t*>(shader::fairy_frag);
+    }
+    fragment_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
 }
 
 void FairyPipeline::CreatePipeline(vk::RenderPass render_pass)
@@ -323,6 +326,20 @@ void FairyPipeline::CreatePipeline(vk::RenderPass render_pass)
     pipeline_create_info.renderPass = render_pass;
     pipeline_create_info.subpass = 0;
     pipeline_ = GpuContext::Get().device.createGraphicsPipeline(nullptr, pipeline_create_info).value;
+}
+
+void FairyPipeline::ClearFragmentShaderAndPipeline()
+{
+    if (pipeline_)
+    {
+        GpuContext::Get().device.destroyPipeline(pipeline_);
+        pipeline_ = nullptr;
+    }
+    if (fragment_shader_)
+    {
+        GpuContext::Get().device.destroyShaderModule(fragment_shader_);
+        fragment_shader_ = nullptr;
+    }
 }
 
 void FairyPipeline::CreateDrawIndices()

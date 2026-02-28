@@ -13,7 +13,7 @@ class GpuTexture;
 class FairyPipeline
 {
 public:
-    FairyPipeline(vk::RenderPass render_pass);
+    FairyPipeline();
     FV_DELETE_COPY_MOVE(FairyPipeline)
     ~FairyPipeline();
 
@@ -29,6 +29,9 @@ public:
     void Update_iChannel(int index);
     void Update_iDate(const ktm::fvec4& i_date);
 
+    // reset pipeline
+    void Reset(vk::RenderPass render_pass, const std::string& shader);
+
     // getter
     FV_INLINE vk::PipelineLayout PipelineLayout() const { return pipeline_layout_; }
     FV_INLINE vk::Pipeline Pipeline() const { return pipeline_; }
@@ -39,24 +42,26 @@ public:
 
 private:
     // pipeline context
-    void CreateShaders();
     void CreateDescriptorSetLayouts();
     void CreateDescriptorPoolAndSets();
     void CreatePipelineLayout();
+    void CreateVertexShader();
+    void CreateFragmentShader(const std::string& shader);
     void CreatePipeline(vk::RenderPass render_pass);
+    void ClearFragmentShaderAndPipeline();
 
     // pipeline resource
     void CreateDrawIndices();
     void CreateDrawResource();
     void BindResourceToDescriptSets();
 
-    vk::ShaderModule vertex_shader_;
-    vk::ShaderModule fragment_shader_;
     std::vector<vk::DescriptorSetLayout> descriptor_set_layouts_;
     vk::DescriptorPool descriptor_pool_;
-    vk::PipelineLayout pipeline_layout_;
-    vk::Pipeline pipeline_;
     std::vector<vk::DescriptorSet> descriptor_sets_;
+    vk::PipelineLayout pipeline_layout_;
+    vk::ShaderModule vertex_shader_;
+    vk::ShaderModule fragment_shader_;
+    vk::Pipeline pipeline_;
 
     vk::IndexType indices_type_;
     uint32_t indices_count_;

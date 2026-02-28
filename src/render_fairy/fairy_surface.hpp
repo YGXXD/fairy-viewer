@@ -19,6 +19,7 @@ public:
     ~FairySurface();
 
     void Render(const FairyPipeline* fairy_pipeline, vk::Semaphore& out_signal_semaphore);
+    void WaitGpuIfNeeded();
     FV_INLINE const GpuTexture* RenderTarget() const { return render_target_.get(); };
     FV_INLINE vk::RenderPass RenderPass() const { return render_pass_; }
 
@@ -27,7 +28,6 @@ private:
     void CreateRenderPass();
     void CreateFramebuffer();
     void CreateSubmitResource();
-    void WaitFenceIfNeeded();
 
     uint32_t width_;
     uint32_t height_;

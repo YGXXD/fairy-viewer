@@ -13,3 +13,6 @@
 [submodule "third_party/ktm"]
 	path = third_party/ktm
 	url = https://github.com/YGXXD/ktm.git
+[submodule "third_party/imgui_colortextedit"]
+	path = third_party/imgui_colortextedit
+	url = https://github.com/BalazsJako/ImGuiColorTextEdit.git

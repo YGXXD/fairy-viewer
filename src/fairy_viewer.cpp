@@ -5,23 +5,24 @@
 #include "imgui.h"
 #include "backends/imgui_impl_sdl3.h"
 #include "backends/imgui_impl_sdlrenderer3.h"
+#include "TextEditor.h"
 
 #include "render_core/gpu_context.hpp"
 #include "render_core/gpu_texture.hpp"
 #include "render_fairy/fairy_surface.hpp"
 #include "render_fairy/fairy_pipeline.hpp"
 
-const char* title = "hello fairy!";
-const int window_width = 1280;
-const int window_height = 720;
+const char* title = "fairy vewer";
+const int window_width = 1600;
+const int window_height = 900;
 SDL_Window* window;
 SDL_Renderer* renderer;
 SDL_Texture* sdl_image_texture;
 SDL_PixelFormat sdl_fairy_image_format = SDL_PIXELFORMAT_RGBA32;
 SDL_Texture* sdl_fairy_image_texture;
 
-const int fairy_surface_width = 1280;
-const int fairy_surface_height = 720;
+const int fairy_surface_width = 1600;
+const int fairy_surface_height = 900;
 const vk::Format fairy_surface_format = vk::Format::eR8G8B8A8Srgb;
 std::unique_ptr<fv::FairySurface> fairy_surface;
 std::unique_ptr<fv::FairyPipeline> fairy_pipeline;
@@ -33,11 +34,42 @@ int i_frame;
 ktm::fvec4 i_mouse;
 ktm::fvec4 i_date;
 
-void InitFairy()
+std::string default_shader = R"(/*
+    shadertoy.com input variables
+    uniform vec3      iResolution;           // viewport resolution (in pixels)
+    uniform float     iTime;                 // shader playback time (in seconds)
+    uniform float     iTimeDelta;            // render time (in seconds)
+    uniform float     iFrameRate;            // shader frame rate
+    uniform int       iFrame;                // shader playback frame
+    uniform float     iChannelTime[4];       // channel playback time (in seconds)
+    uniform vec3      iChannelResolution[4]; // channel resolution (in pixels)
+    uniform vec4      iMouse;                // mouse pixel coords. xy: current (if MLB down), zw: click
+    uniform samplerXX iChannel0..3;          // input channel. XX = 2D/Cube
+    uniform vec4      iDate;                 // (year, month, day, time in seconds)
+*/
+
+void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
-    fairy_surface = std::unique_ptr<fv::FairySurface>(
-        new fv::FairySurface(fairy_surface_width, fairy_surface_height, fairy_surface_format));
-    fairy_pipeline = std::unique_ptr<fv::FairyPipeline>(new fv::FairyPipeline(fairy_surface->RenderPass()));
+    // Normalized pixel coordinates (from 0 to 1)
+    vec2 uv = fragCoord/iResolution.xy;
+
+    // Time varying pixel color
+    vec3 col = 0.5 + 0.5*cos(iTime+uv.xyx+vec3(0,2,4));
+
+    // Output to screen
+    fragColor = vec4(col,1.0);
+})";
+TextEditor shader_editor;
+
+float fps;
+float fps_curr_time;
+int fps_curr_frame;
+
+void ResetPipeline()
+{
+    std::string codes = shader_editor.GetText();
+    fairy_surface->WaitGpuIfNeeded();
+    fairy_pipeline->Reset(fairy_surface->RenderPass(), codes);
     fairy_start_time = SDL_GetTicks();
     i_time = 0;
     float i_time_delta = 0;
@@ -45,6 +77,17 @@ void InitFairy()
     i_frame = 0;
     i_mouse = ktm::fvec4 { 0, 0, 0, 0 };
     i_date = ktm::fvec4 { 0, 0, 0, 0 };
+
+    // fps calc
+    fps = 0;
+    fps_curr_time = 0;
+    fps_curr_frame = 0;
+}
+
+void InitFairy()
+{
+    fairy_surface = std::unique_ptr<fv::FairySurface>(
+        new fv::FairySurface(fairy_surface_width, fairy_surface_height, fairy_surface_format));
 
     SDL_PropertiesID texture_props = SDL_CreateProperties();
     VkImage fairy_surface_image = fairy_surface->RenderTarget()->Image();
@@ -55,7 +98,17 @@ void InitFairy()
                           reinterpret_cast<Sint64>(fairy_surface_image));
     sdl_fairy_image_texture = SDL_CreateTextureWithProperties(renderer, texture_props);
     SDL_DestroyProperties(texture_props);
-    SDL_SetTextureBlendMode(sdl_fairy_image_texture, SDL_BLENDMODE_NONE);
+
+    TextEditor::LanguageDefinition lang = TextEditor::LanguageDefinition::GLSL();
+    shader_editor.SetLanguageDefinition(lang);
+    shader_editor.SetText(default_shader);
+    shader_editor.SetPalette(TextEditor::GetLightPalette());
+    shader_editor.SetShowWhitespaces(false);
+    shader_editor.SetTabSize(4);
+    shader_editor.SetReadOnly(false);
+
+    fairy_pipeline = std::unique_ptr<fv::FairyPipeline>(new fv::FairyPipeline());
+    ResetPipeline();
 }
 
 void RenderFairy()
@@ -65,6 +118,15 @@ void RenderFairy()
     i_time_delta = fairy_current_time - i_time;
     i_time = fairy_current_time;
     i_frame_rate = 1.f / i_time_delta;
+    fps_curr_time += i_time_delta;
+    if (fps_curr_time > 0.333f)
+    {
+        fps = static_cast<float>(i_frame - fps_curr_frame) / fps_curr_time;
+        fps_curr_frame = i_frame;
+        fps_curr_time = 0.f;
+    }
+
+    fairy_surface->WaitGpuIfNeeded();
 
     fairy_pipeline->Update_iResolution(ktm::fvec3 { fairy_surface_width, fairy_surface_height, 1 });
     fairy_pipeline->Update_iTime(i_time);
@@ -87,6 +149,30 @@ void DestroyFairy()
     fairy_surface.reset();
 }
 
+void ShowFairyWindow()
+{
+    ImGui::Begin("fairy");
+    ImGui::Image(sdl_fairy_image_texture, ImVec2(800, 450));
+    ImGui::Text("time: %.2f s", i_time);
+    ImGui::SameLine(0, 30);
+    ImGui::Text("fps: %.1f", fps);
+    ImGui::SameLine(0, 30);
+    ImGui::Text("frame: %d", i_frame);
+    ImGui::End();
+}
+
+void ShowCodeEditorWindow()
+{
+    ImGui::Begin("shader editor");
+    ImGuiInputTextFlags flags = ImGuiInputTextFlags_AllowTabInput;
+    if (ImGui::Button("compile", ImVec2(100, 24)))
+    {
+        ResetPipeline();
+    }
+    shader_editor.Render("text region");
+    ImGui::End();
+}
+
 int main(int argc, char* argv[])
 {
     std::cout << "Hello World!" << std::endl;
@@ -94,12 +180,15 @@ int main(int argc, char* argv[])
     fv::GpuContext::Init();
     window = SDL_CreateWindow(title, window_width, window_height, SDL_WINDOW_RESIZABLE);
     SDL_ShowWindow(window);
+    SDL_StartTextInput(window);
 
     fv::GpuContext& gpu_context = fv::GpuContext::Get();
     SDL_PropertiesID renderer_props = SDL_CreateProperties();
     SDL_SetStringProperty(renderer_props, SDL_PROP_RENDERER_CREATE_NAME_STRING, "vulkan");
     SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_WINDOW_POINTER, window);
-    SDL_SetNumberProperty(renderer_props, SDL_PROP_RENDERER_CREATE_OUTPUT_COLORSPACE_NUMBER, SDL_COLORSPACE_SRGB_LINEAR);
+    SDL_SetNumberProperty(renderer_props, SDL_PROP_RENDERER_CREATE_OUTPUT_COLORSPACE_NUMBER,
+                          SDL_COLORSPACE_SRGB_LINEAR);
+    SDL_SetNumberProperty(renderer_props, SDL_PROP_RENDERER_CREATE_PRESENT_VSYNC_NUMBER, SDL_RENDERER_VSYNC_ADAPTIVE);
     SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_INSTANCE_POINTER, gpu_context.instance);
     SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_PHYSICAL_DEVICE_POINTER,
                            gpu_context.physical_device);
@@ -127,8 +216,6 @@ int main(int argc, char* argv[])
 
     InitFairy();
 
-    float start_time;
-
     bool isAppRun = true;
     SDL_Event event;
     while (isAppRun)
@@ -149,9 +236,11 @@ int main(int argc, char* argv[])
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
-        ImGui::ShowDemoWindow(&isAppRun);
-        ImGui::Image(sdl_fairy_image_texture, ImVec2(800, 450));
+        ShowFairyWindow();
+        ImGui::Begin("test");
         ImGui::Image(sdl_image_texture, ImVec2(200, 200));
+        ImGui::End();
+        ShowCodeEditorWindow();
         ImGui::Render();
         ImGui_ImplSDLRenderer3_RenderDrawData(ImGui::GetDrawData(), renderer);
         SDL_RenderPresent(renderer);
@@ -161,6 +250,7 @@ int main(int argc, char* argv[])
 
     ImGui_ImplSDLRenderer3_Shutdown();
     ImGui_ImplSDL3_Shutdown();
+    ImGui::DestroyContext();
     SDL_DestroyTexture(sdl_image_texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
