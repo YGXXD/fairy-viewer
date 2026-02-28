@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 project(fairy-viewer)
 
-set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Release)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
@@ -47,7 +47,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC SDL3_image-shared)
 
 # imgui
 set(IMGUI_SOURCE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui)
-add_library(ImGui SHARED
+add_library(ImGui STATIC
 	${IMGUI_SOURCE_DIR}/imgui.cpp
 	${IMGUI_SOURCE_DIR}/imgui_draw.cpp
 	${IMGUI_SOURCE_DIR}/imgui_widgets.cpp
@@ -65,7 +65,7 @@ set(IMGUI_COLORTEXTEDIT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/third_party/imgui_colorte
 add_library(ImGuiColorTextEdit STATIC
 	${IMGUI_COLORTEXTEDIT_SOURCE_DIR}/TextEditor.cpp
 )
-target_link_libraries(ImGuiColorTextEdit PUBLIC ImGui)
+target_include_directories(ImGuiColorTextEdit PRIVATE ${IMGUI_SOURCE_DIR})
 target_include_directories(ImGuiColorTextEdit PUBLIC ${IMGUI_COLORTEXTEDIT_SOURCE_DIR})
 target_link_libraries(${PROJECT_NAME} PUBLIC ImGuiColorTextEdit)
 
