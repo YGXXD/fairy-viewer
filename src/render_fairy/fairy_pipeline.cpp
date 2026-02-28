@@ -147,7 +147,9 @@ void FairyPipeline::CreateShaders()
         void main()
         {
             vec2 fragCoord = vec2(gl_FragCoord.x, iResolution.y - gl_FragCoord.y);
-            mainImage(outColor, fragCoord);
+            vec4 fragColor = vec4(0.0);
+            mainImage(fragColor, fragCoord);
+            outColor = vec4(fragColor.xyz, 1.0);
         }
     )";
     const char* source_body = R"(
