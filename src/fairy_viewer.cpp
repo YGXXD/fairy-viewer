@@ -12,6 +12,8 @@
 #include "render_fairy/fairy_surface.hpp"
 #include "render_fairy/fairy_pipeline.hpp"
 
+#include "fairy_shader_test.hpp"
+
 const char* title = "fairy vewer";
 const int window_width = 1600;
 const int window_height = 900;
@@ -166,7 +168,7 @@ void ShowFairyWindow()
     ImGui::Text("fps: %.1f", fps);
     ImGui::SameLine(0, 30);
     ImGui::Text("frame: %d", i_frame);
-    
+
     ImGui::End();
 }
 
@@ -177,6 +179,15 @@ void ShowCodeEditorWindow()
     if (ImGui::Button("compile", ImVec2(100, 24)))
     {
         ResetPipeline();
+    }
+    for (int i = 0; i < shaders.size(); i++)
+    {
+        ImGui::SameLine(0, 10);
+        if (ImGui::Button((std::string("test") + std::to_string(i)).c_str(), ImVec2(100, 24)))
+        {
+            shader_editor.SetText(std::string(shaders[i]));
+            ResetPipeline();
+        }
     }
     shader_editor.Render("text region");
     ImGui::End();
