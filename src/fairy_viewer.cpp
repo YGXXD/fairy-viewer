@@ -20,14 +20,19 @@ const int window_height = 900;
 SDL_Window* window;
 SDL_Renderer* renderer;
 SDL_Texture* sdl_image_texture;
-SDL_PixelFormat sdl_fairy_image_format = SDL_PIXELFORMAT_RGBA32;
-SDL_Texture* sdl_fairy_image_texture;
 
+int fairy_buffer_count;
 const int fairy_surface_width = 1600;
 const int fairy_surface_height = 900;
 const vk::Format fairy_surface_format = vk::Format::eR8G8B8A8Srgb;
 std::unique_ptr<fv::FairySurface> fairy_surface;
 std::unique_ptr<fv::FairyPipeline> fairy_pipeline;
+std::vector<vk::Semaphore> fairy_complete_signals;
+
+int current_render_index = 0;
+SDL_PixelFormat sdl_fairy_image_format = SDL_PIXELFORMAT_RGBA32;
+std::vector<SDL_Texture*> sdl_fairy_image_textures;
+
 uint64_t fairy_start_time;
 float i_time;
 float i_time_delta;
@@ -71,12 +76,12 @@ int fps_curr_frame;
 void ResetPipeline()
 {
     std::string codes = shader_editor.GetText();
-    fairy_surface->WaitGpuIfNeeded();
+    fairy_surface->WaitRenderComplete();
     pipeline_reset_status = fairy_pipeline->Reset(fairy_surface->RenderPass(), codes);
     fairy_start_time = SDL_GetTicks();
     i_time = 0;
-    float i_time_delta = 0;
-    float i_frame_rate = 0;
+    i_time_delta = 0;
+    i_frame_rate = 0;
     i_frame = 0;
     i_mouse = ktm::fvec4 { 0, 0, 0, 0 };
     i_date = ktm::fvec4 { 0, 0, 0, 0 };
@@ -90,17 +95,23 @@ void ResetPipeline()
 void InitFairy()
 {
     fairy_surface = std::unique_ptr<fv::FairySurface>(
-        new fv::FairySurface(fairy_surface_width, fairy_surface_height, fairy_surface_format));
+        new fv::FairySurface(fairy_surface_width, fairy_surface_height, fairy_surface_format, fairy_buffer_count));
 
-    SDL_PropertiesID texture_props = SDL_CreateProperties();
-    VkImage fairy_surface_image = fairy_surface->RenderTarget()->Image();
-    SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, fairy_surface_width);
-    SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, fairy_surface_height);
-    SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER, sdl_fairy_image_format);
-    SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_VULKAN_TEXTURE_NUMBER,
-                          reinterpret_cast<Sint64>(fairy_surface_image));
-    sdl_fairy_image_texture = SDL_CreateTextureWithProperties(renderer, texture_props);
-    SDL_DestroyProperties(texture_props);
+    fairy_complete_signals.reserve(fairy_buffer_count);
+    sdl_fairy_image_textures.reserve(fairy_buffer_count);
+    for (int i = 0; i < fairy_buffer_count; ++i)
+    {
+        fairy_complete_signals.emplace_back(fv::GpuContext::Get().device.createSemaphore({}));
+        SDL_PropertiesID texture_props = SDL_CreateProperties();
+        VkImage fairy_surface_image = fairy_surface->RenderTarget(i)->Image();
+        SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, fairy_surface_width);
+        SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_HEIGHT_NUMBER, fairy_surface_height);
+        SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_FORMAT_NUMBER, sdl_fairy_image_format);
+        SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_VULKAN_TEXTURE_NUMBER,
+                              reinterpret_cast<Sint64>(fairy_surface_image));
+        sdl_fairy_image_textures.emplace_back(SDL_CreateTextureWithProperties(renderer, texture_props));
+        SDL_DestroyProperties(texture_props);
+    }
 
     TextEditor::LanguageDefinition lang = TextEditor::LanguageDefinition::GLSL();
     shader_editor.SetLanguageDefinition(lang);
@@ -114,7 +125,7 @@ void InitFairy()
     ResetPipeline();
 }
 
-void RenderFairy()
+void RenderFairy(int index)
 {
     uint64_t fairy_current_ticks = SDL_GetTicks() - fairy_start_time;
     float fairy_current_time = fairy_current_ticks / 1000.f;
@@ -128,9 +139,6 @@ void RenderFairy()
         fps_curr_frame = i_frame;
         fps_curr_time = 0.f;
     }
-
-    fairy_surface->WaitGpuIfNeeded();
-
     fairy_pipeline->Update_iResolution(ktm::fvec3 { fairy_surface_width, fairy_surface_height, 1 });
     fairy_pipeline->Update_iTime(i_time);
     fairy_pipeline->Update_iTimeDelta(i_time_delta);
@@ -138,24 +146,23 @@ void RenderFairy()
     fairy_pipeline->Update_iFrame(i_frame++);
     fairy_pipeline->Update_iMouse(i_mouse);
     fairy_pipeline->Update_iDate(i_date);
-
-    vk::Semaphore signal_semaphore;
-    fairy_surface->Render(fairy_pipeline.get(), signal_semaphore);
-    SDL_AddVulkanRenderSemaphores(renderer, static_cast<Uint32>(vk::PipelineStageFlagBits::eFragmentShader),
-                                  reinterpret_cast<Sint64>(VkSemaphore { signal_semaphore }), 0);
+    fairy_surface->Render(fairy_pipeline.get(), index);
 }
 
 void DestroyFairy()
 {
-    SDL_DestroyTexture(sdl_fairy_image_texture);
-    fairy_pipeline.reset();
+    for (const auto& texture : sdl_fairy_image_textures)
+        SDL_DestroyTexture(texture);
     fairy_surface.reset();
+    for (const auto& semaphore : fairy_complete_signals)
+        fv::GpuContext::Get().device.destroySemaphore(semaphore);
+    fairy_pipeline.reset();
 }
 
-void ShowFairyWindow()
+void ShowFairyWindow(int index)
 {
     ImGui::Begin("fairy");
-    ImGui::Image(sdl_fairy_image_texture, ImVec2(800, 450));
+    ImGui::Image(sdl_fairy_image_textures[index], ImVec2(800, 450));
     if (!pipeline_reset_status)
     {
         ImVec2 curr_cursor_pos = ImGui::GetCursorPos();
@@ -195,7 +202,6 @@ void ShowCodeEditorWindow()
 
 int main(int argc, char* argv[])
 {
-    std::cout << "Hello World!" << std::endl;
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
     fv::GpuContext::Init();
     window = SDL_CreateWindow(title, window_width, window_height, SDL_WINDOW_RESIZABLE);
@@ -213,11 +219,16 @@ int main(int argc, char* argv[])
     SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_PHYSICAL_DEVICE_POINTER,
                            gpu_context.physical_device);
     SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_DEVICE_POINTER, gpu_context.device);
-    SDL_SetNumberProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_GRAPHICS_QUEUE_FAMILY_INDEX_NUMBER, 0);
-    SDL_SetNumberProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_NUMBER, 0);
+    SDL_SetNumberProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_GRAPHICS_QUEUE_FAMILY_INDEX_NUMBER,
+                          gpu_context.queue_family_index);
+    SDL_SetNumberProperty(renderer_props, SDL_PROP_RENDERER_CREATE_VULKAN_PRESENT_QUEUE_FAMILY_INDEX_NUMBER,
+                          gpu_context.queue_family_index);
     renderer = SDL_CreateRendererWithProperties(renderer_props);
+    SDL_DestroyProperties(renderer_props);
     if (renderer == nullptr)
         std::cerr << SDL_GetError() << std::endl;
+    fairy_buffer_count = SDL_GetNumberProperty(SDL_GetRendererProperties(renderer),
+                                               SDL_PROP_RENDERER_VULKAN_SWAPCHAIN_IMAGE_COUNT_NUMBER, 2);
 
     SDL_IOStream* png_io = SDL_IOFromFile(ASSETS_PATH "nfl.png", "rb");
     SDL_Surface* surface = IMG_LoadPNG_IO(png_io);
@@ -236,27 +247,31 @@ int main(int argc, char* argv[])
 
     InitFairy();
 
-    bool isAppRun = true;
+    bool is_app_run = true;
     SDL_Event event;
-    while (isAppRun)
+    while (is_app_run)
     {
         while (SDL_PollEvent(&event))
         {
             ImGui_ImplSDL3_ProcessEvent(&event);
             if (event.type == SDL_EVENT_QUIT)
             {
-                isAppRun = false;
+                is_app_run = false;
             }
         }
 
-        RenderFairy();
-
+        current_render_index = (current_render_index + 1) % fairy_buffer_count;
+        fairy_surface->AddSignalSemaphore(fairy_complete_signals[current_render_index]);
+        RenderFairy(current_render_index);
+        SDL_AddVulkanRenderSemaphores(
+            renderer, static_cast<Uint32>(vk::PipelineStageFlagBits::eFragmentShader),
+            reinterpret_cast<Sint64>((VkSemaphore)fairy_complete_signals[current_render_index]), 0);
         SDL_RenderClear(renderer);
-        SDL_RenderTexture(renderer, sdl_fairy_image_texture, nullptr, nullptr);
+        SDL_RenderTexture(renderer, sdl_fairy_image_textures[current_render_index], nullptr, nullptr);
         ImGui_ImplSDLRenderer3_NewFrame();
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
-        ShowFairyWindow();
+        ShowFairyWindow(current_render_index);
         ImGui::Begin("test");
         ImGui::Image(sdl_image_texture, ImVec2(200, 200));
         ImGui::End();

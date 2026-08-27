@@ -17,9 +17,8 @@ public:
 
     vk::Instance instance;
     vk::PhysicalDevice physical_device;
+    uint32_t queue_family_index;
     vk::Device device;
-    vk::Queue queue;
-    vk::CommandPool command_pool;
     VmaAllocator allocator;
 
 private:

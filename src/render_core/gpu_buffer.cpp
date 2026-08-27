@@ -38,7 +38,7 @@ GpuBuffer::~GpuBuffer()
 }
 
 vk::UniqueBufferView GpuBuffer::CreateBufferView(vk::Format buffer_format, VkDeviceSize offset,
-                                                   VkDeviceSize range) const
+                                                 VkDeviceSize range) const
 {
     auto create_info = MakeBufferViewCreateInfo(buffer_format, offset, range);
     return GpuContext::Get().device.createBufferViewUnique(*create_info);

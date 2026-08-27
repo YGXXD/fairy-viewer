@@ -24,7 +24,7 @@ static constexpr vk::ImageAspectFlags SubresourceAspectMask(vk::Format format)
 }
 
 GpuTexture::GpuTexture(uint32_t width, uint32_t height, vk::Format image_format, vk::ImageUsageFlags image_usage,
-                           vk::MemoryPropertyFlags memory_property)
+                       vk::MemoryPropertyFlags memory_property)
     : format_(image_format), width_(width), height_(height)
 {
     bool is_host = static_cast<bool>(memory_property & vk::MemoryPropertyFlagBits::eHostVisible);
@@ -48,8 +48,8 @@ GpuTexture::GpuTexture(uint32_t width, uint32_t height, vk::Format image_format,
 
     VkImage image;
     VmaAllocation allocation;
-    vmaCreateImage(GpuContext::Get().allocator, &static_cast<VkImageCreateInfo&>(image_create_info),
-                   &alloc_create_info, &image, &allocation, nullptr);
+    vmaCreateImage(GpuContext::Get().allocator, &static_cast<VkImageCreateInfo&>(image_create_info), &alloc_create_info,
+                   &image, &allocation, nullptr);
     image_ = image;
     image_view_ = GpuContext::Get().device.createImageView(*MakeImageViewCreateInfo());
     allocation_ = allocation;

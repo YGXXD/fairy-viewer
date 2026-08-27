@@ -12,7 +12,7 @@ class GpuTexture
 {
 public:
     GpuTexture(uint32_t width, uint32_t height, vk::Format image_format, vk::ImageUsageFlags image_usage,
-                 vk::MemoryPropertyFlags memory_property);
+               vk::MemoryPropertyFlags memory_property);
     FV_DELETE_COPY_MOVE(GpuTexture)
     ~GpuTexture();
 

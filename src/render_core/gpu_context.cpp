@@ -11,9 +11,8 @@ constexpr uint32_t vulkan_api_version_ = VK_API_VERSION_1_2;
 vk::Instance instance_;
 vk::PhysicalDevice physical_device_;
 uint32_t queue_family_index_;
+uint32_t fairy_queue_family_index_;
 vk::Device device_;
-vk::Queue queue_;
-vk::CommandPool command_pool_;
 VmaAllocator allocator_;
 
 std::vector<const char*> instance_extension_names_ = {
@@ -109,7 +108,7 @@ void CreatePhysicalDeviceAndProperties()
     queue_family_index_ = queue_family_propertie_it - queue_family_properties.begin();
 }
 
-void CreateDeviceAndQueue()
+void CreateDevice()
 {
     float queue_priority = 1.0f;
     vk::DeviceQueueCreateInfo queue_create_info = {};
@@ -139,18 +138,7 @@ void CreateDeviceAndQueue()
 #endif
     device_create_info.enabledExtensionCount = device_extension_names_.size();
     device_create_info.ppEnabledExtensionNames = device_extension_names_.data();
-
     device_ = physical_device_.createDevice(device_create_info);
-    queue_ = device_.getQueue(queue_family_index_, 0);
-}
-
-void CreateCommandPool()
-{
-    vk::CommandPoolCreateInfo command_pool_create_info = {};
-    command_pool_create_info.queueFamilyIndex = queue_family_index_;
-    command_pool_create_info.flags |= vk::CommandPoolCreateFlagBits::eResetCommandBuffer;
-    command_pool_create_info.flags |= vk::CommandPoolCreateFlagBits::eTransient;
-    command_pool_ = device_.createCommandPool(command_pool_create_info);
 }
 
 void CreateVmaMemoryAllocator()
@@ -167,28 +155,27 @@ void GpuContext::Init()
 {
     CreateInstance();
     CreatePhysicalDeviceAndProperties();
-    CreateDeviceAndQueue();
-    CreateCommandPool();
+    CreateDevice();
     CreateVmaMemoryAllocator();
+
     Get().instance = instance_;
     Get().allocator = allocator_;
     Get().physical_device = physical_device_;
+    Get().queue_family_index = queue_family_index_;
     Get().device = device_;
-    Get().queue = queue_;
-    Get().command_pool = command_pool_;
 }
 
 void GpuContext::Quit()
 {
     vmaDestroyAllocator(allocator_);
-    device_.destroyCommandPool(command_pool_);
     device_.destroy();
     instance_.destroy();
+
     Get().instance = nullptr;
     Get().allocator = nullptr;
     Get().physical_device = nullptr;
+    Get().queue_family_index = -1;
     Get().device = nullptr;
-    Get().command_pool = nullptr;
 }
 
 GpuContext::GpuContext() = default;
