@@ -6,8 +6,9 @@
 namespace fv
 {
 
-FairySurface::FairySurface(uint32_t width, uint32_t height, vk::Format format, uint32_t buffer_count)
-    : width_(width), height_(height), format_(format), buffer_count_(buffer_count)
+FairySurface::FairySurface(uint32_t width, uint32_t height, vk::Format format, FairySurfaceUsage usage,
+                           uint32_t buffer_count)
+    : width_(width), height_(height), format_(format), usage_(usage), buffer_count_(buffer_count)
 {
     CreateRenderPass();
     CreateRenderTarget();
@@ -109,6 +110,17 @@ void FairySurface::WaitRenderComplete(int index)
 
 void FairySurface::CreateRenderPass()
 {
+    vk::ImageLayout final_layout;
+    switch (usage_)
+    {
+    case FairySurfaceUsage::eSample:
+        final_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        break;
+    case FairySurfaceUsage::eCopy:
+        final_layout = vk::ImageLayout::eTransferSrcOptimal;
+        break;
+    }
+
     vk::AttachmentDescription color_attachment = {};
     color_attachment.format = format_;
     color_attachment.samples = vk::SampleCountFlagBits::e1;
@@ -117,7 +129,7 @@ void FairySurface::CreateRenderPass()
     color_attachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
     color_attachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
     color_attachment.initialLayout = vk::ImageLayout::eUndefined;
-    color_attachment.finalLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+    color_attachment.finalLayout = final_layout;
 
     vk::AttachmentReference color_attachment_ref = {};
     color_attachment_ref.attachment = 0;
@@ -139,14 +151,21 @@ void FairySurface::CreateRenderPass()
 
 void FairySurface::CreateRenderTarget()
 {
+    vk::ImageUsageFlags image_usage = vk::ImageUsageFlagBits::eColorAttachment;
+    switch (usage_)
+    {
+    case FairySurfaceUsage::eSample:
+        image_usage |= vk::ImageUsageFlagBits::eSampled;
+        break;
+    case FairySurfaceUsage::eCopy:
+        image_usage |= vk::ImageUsageFlagBits::eTransferSrc;
+        break;
+    }
     render_targets_.reserve(buffer_count_);
     for (int i = 0; i < buffer_count_; ++i)
     {
         render_targets_.emplace_back(std::unique_ptr<GpuTexture>(
-            new GpuTexture(width_, height_, format_,
-                           vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc |
-                               vk::ImageUsageFlagBits::eSampled,
-                           vk::MemoryPropertyFlagBits::eDeviceLocal)));
+            new GpuTexture(width_, height_, format_, image_usage, vk::MemoryPropertyFlagBits::eDeviceLocal)));
     }
 }
 

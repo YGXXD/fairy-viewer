@@ -95,7 +95,8 @@ void ResetPipeline()
 void InitFairy()
 {
     fairy_surface = std::unique_ptr<fv::FairySurface>(
-        new fv::FairySurface(fairy_surface_width, fairy_surface_height, fairy_surface_format, fairy_buffer_count));
+        new fv::FairySurface(fairy_surface_width, fairy_surface_height, fairy_surface_format,
+                             fv::FairySurfaceUsage::eSample, fairy_buffer_count));
 
     fairy_complete_signals.reserve(fairy_buffer_count);
     sdl_fairy_image_textures.reserve(fairy_buffer_count);

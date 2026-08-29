@@ -9,13 +9,19 @@
 namespace fv
 {
 
+enum class FairySurfaceUsage
+{
+    eSample,
+    eCopy
+};
+
 class GpuBuffer;
 class GpuTexture;
 class FairyPipeline;
 class FairySurface
 {
 public:
-    FairySurface(uint32_t width, uint32_t height, vk::Format format, uint32_t buffer_count);
+    FairySurface(uint32_t width, uint32_t height, vk::Format format, FairySurfaceUsage usage, uint32_t buffer_count);
     FV_DELETE_COPY_MOVE(FairySurface)
     ~FairySurface();
 
@@ -37,6 +43,7 @@ private:
     uint32_t width_;
     uint32_t height_;
     vk::Format format_;
+    FairySurfaceUsage usage_;
     uint32_t buffer_count_;
 
     vk::RenderPass render_pass_;
