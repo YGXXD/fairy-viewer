@@ -670,127 +670,115 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
 
 // ref: https://www.shadertoy.com/view/7cfGzn
 constexpr std::string_view shader1 = R"(
-// SPDX-License-Identifier: CC-BY-NC-SA-4.0
-// Copyright (c) 2026 @WorkingClassHacker
-//[LICENSE] https://creativecommons.org/licenses/by-nc-sa/4.0/
+vec3 bgColor = vec3(0.01, 0.16, 0.42);
+vec3 rectColor = vec3(0.01, 0.26, 0.57);
 
-// SPDX-License-Identifier: CC-BY-NC-SA-4.0
-// Based on Abstract Shine by @Frosbyte
-// Copyright (c) 2026 @Frostbyte
+//noise background
+const float noiseIntensity = 2.8;
+const float noiseDefinition = 0.6;
+const vec2 glowPos = vec2(-2., 0.);
 
-// Rotation matrix using cosine phase offsets.
-// cos(a+33) ≈ -sin(a)
-// cos(a+11) ≈  sin(a)
-// compact 2D rotation without sin(). 
-// Approximates sin within an invisible margin for animated graphics
+//rectangles
+const float total = 60.;//number of rectangles
+const float minSize = 0.03;//rectangle min size
+const float maxSize = 0.08-minSize;//rectangle max size
+const float yDistribution = 0.5;
 
-#define R(a) mat2(cos(a+vec4(0, 33, 11, 0)))
 
-// IQ`s continuous cosine palette (MIT)
-// produces smooth, periodic color gradients
-// https://www.shadertoy.com/view/ll2GD3
-
-vec3 palette(float i){
-    const vec3 a = vec3(0.50, 0.38, 0.26);  // base tone (warm midtone)
-    const vec3 b = vec3(0.50, 0.35, 0.25);  // amplitude (vibrance)
-    const vec3 c = vec3(1.00);              // frequency (cyclic complexity)
-    const vec3 d = vec3(0.00, 0.12, 0.25);  // phase offsets (hue shift)
-    return a + b * cos(6.2831853 * (c * i + d));
+float random(vec2 co){
+    return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);
 }
 
-vec3 palette2(float i){
-
-    const vec3 a = vec3(0.742702f, 0.908877f, 0.959831f);
-    const vec3 b = vec3(-0.711000f, 0.275000f, -0.052000f);
-    const vec3 c = vec3(1.000000f, 1.855000f, 1.000000f);
-    const vec3 d = vec3(0.180000f, 0.091000f, 0.380000f);
-    return a + b * cos(6.2831853f * (c * i + d));
-
+float noise( in vec2 p )
+{
+    p*=noiseIntensity;
+    vec2 i = floor( p );
+    vec2 f = fract( p );
+	vec2 u = f*f*(3.0-2.0*f);
+    return mix( mix( random( i + vec2(0.0,0.0) ), 
+                     random( i + vec2(1.0,0.0) ), u.x),
+                mix( random( i + vec2(0.0,1.0) ), 
+                     random( i + vec2(1.0,1.0) ), u.x), u.y);
 }
 
+float fbm( in vec2 uv )
+{	
+	uv *= 5.0;
+    mat2 m = mat2( 1.6,  1.2, -1.2,  1.6 );
+    float f  = 0.5000*noise( uv ); uv = m*uv;
+    f += 0.2500*noise( uv ); uv = m*uv;
+    f += 0.1250*noise( uv ); uv = m*uv;
+    f += 0.0625*noise( uv ); uv = m*uv;
+    
+	f = 0.5 + 0.5*f;
+    return f;
+}
+
+vec3 bg(vec2 uv )
+{
+    float velocity = iTime/1.6;
+    float intensity = sin(uv.x*3.+velocity*2.)*1.1+1.5;
+    uv.y -= 2.;
+    vec2 bp = uv+glowPos;
+    uv *= noiseDefinition;
+
+    //ripple
+    float rb = fbm(vec2(uv.x*.5-velocity*.03, uv.y))*.1;
+    //rb = sqrt(rb); 
+    uv += rb;
+
+    //coloring
+    float rz = fbm(uv*.9+vec2(velocity*.35, 0.0));
+    rz *= dot(bp*intensity,bp)+1.2;
+
+    //bazooca line
+    //rz *= sin(uv.x*.5+velocity*.8);
+
+
+    vec3 col = bgColor/(.1-rz);
+    return sqrt(abs(col));
+}
+
+
+float rectangle(vec2 uv, vec2 pos, float width, float height, float blur) {
+    
+    pos = (vec2(width, height) + .01)/2. - abs(uv - pos);
+    pos = smoothstep(0., blur , pos);
+    return pos.x * pos.y; 
+   
+}
+
+mat2 rotate2d(float _angle){
+    return mat2(cos(_angle),-sin(_angle),
+                sin(_angle),cos(_angle));
+}
 
 void mainImage( out vec4 fragColor, in vec2 fragCoord )
 {
-    // pixel coordinate
-    vec2 u = fragCoord.xy;
-
-    // normalized screen space centered at origin
-    // (useful for screen-space modulation later)
-    vec2 uv = (u - 0.5*iResolution.xy + 0.5) / iResolution.y;
-
-    float i = 0, s;
-    float t = iTime;
-
-    vec3 p;
-
-    // ray direction through pixel (camera ray)
-    vec3 d = normalize(vec3(
-        2.0 * u - iResolution.xy,
-        iResolution.y
-    ));
-
-    // starting depth → creates forward motion
-    p.z = t;
-
-    // raymarch loop
-    for (fragColor *= i; i < 20.0; i++)
-    {
-        // depth-dependent rotation
-        // produces corkscrew tunnel motion
-        p.xy *= R(-p.z * 0.01 - iTime * 0.05);
-
-        // base step size
-        s = 0.6;
-
-        // cylindrical confinement
-        // creates tunnel boundary at radius ≈ 10
-        s = max(s, 4.0 * (-length(p.xy) + 10.0));
-
-        // organic deformation field
-        // adds flow & energy patterns
-        s += abs(
-            p.y * 0.004 +                // slight tilt
-            sin(t - p.x * 0.5) * 0.9 +  // traveling wave
-            1.0                          // baseline thickness
-        );
-
-        // march ray forward
-        p += d * s;
-
-        // volumetric glow accumulation
-        fragColor += 1.0 / (s * 0.2);
+	vec2 uv = fragCoord.xy / iResolution.xy * 2. - 1.;
+    uv.x *= iResolution.x/iResolution.y;
+    
+    //bg
+    vec3 color = bg(uv)*(2.-abs(uv.y*2.));
+    
+    //rectangles
+    float velX = -iTime/8.;
+    float velY = iTime/10.;
+    for(float i=0.; i<total; i++){
+        float index = i/total;
+        float rnd = random(vec2(index));
+        vec3 pos = vec3(0, 0., 0.);
+        pos.x = fract(velX*rnd+index)*4.-2.0;
+        pos.y = sin(index*rnd*1000.+velY) * yDistribution;
+        pos.z = maxSize*rnd+minSize;
+        vec2 uvRot = uv - pos.xy + pos.z/2.;
+    	uvRot = rotate2d( i+iTime/2. ) * uvRot;
+        uvRot += pos.xy+pos.z/2.;
+        float rect = rectangle(uvRot, pos.xy, pos.z, pos.z, (maxSize+minSize-pos.z)/2.);
+	    color += rectColor * rect * pos.z/maxSize;
     }
-
-    // apply palette based on final ray distance
-    // length(p) approximates depth travelled
-    // gives depth-dependent coloration
-    // divisor controls the palette scaling - try messing with it!
-    // try swapping to palette2 here!
-    fragColor *= vec4(palette(length(p)/(abs(sin(iTime*0.02)*50.)+6.0)), 1.0);
-
-    // time-gated screen-space shimmer / interference layer
-    fragColor -= 20.0 *
-        smoothstep(
-            .001,
-            abs(sin(iTime*5.0)), // pulsating dots, in a demo I would sync this to beat
-            .7 - length(sin(uv*200.0)/1.5)-abs(uv.y)+.2   // high-frequency pattern
-        );
-
-    // brightness normalization
-    fragColor /= 0.5e2;
-
-    // radial gradient
-    float l = length(uv);
-
-    // vignette
-    fragColor *= 1.2-l;
-
-    // center glow
-
-    fragColor = mix(fragColor, palette(l-.23).rgbr, 1.0-smoothstep(.01,.95,l));
-
-    // soft highlight compression
-    fragColor = tanh(fragColor+fragColor);
+    
+	fragColor = vec4(color, 1.0);
 }
 )";
 
