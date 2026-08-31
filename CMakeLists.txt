@@ -77,6 +77,17 @@ target_link_libraries(${PROJECT_NAME} PUBLIC Vulkan::Vulkan)
 find_package(Vulkan REQUIRED COMPONENTS shaderc_combined)
 target_link_libraries(${PROJECT_NAME} PUBLIC Vulkan::shaderc_combined)
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+	find_library(GLSLANG_LIB glslang REQUIRED)
+	find_library(SPIRV_TOOLS_LIB SPIRV-Tools REQUIRED)
+	find_library(SPIRV_TOOLS_OPT_LIB SPIRV-Tools-opt REQUIRED)
+    target_link_libraries(${PROJECT_NAME} PUBLIC 
+        ${GLSLANG_LIB} 
+    	${SPIRV_TOOLS_OPT_LIB}
+    	${SPIRV_TOOLS_LIB}
+    )
+endif()
+
 # vmallocator
 set(VMALLOCATOR_SOURCE_DIR ${CMAKE_SOURCE_DIR}/third_party/vmallocator)
 set(VMALLOCATOR_BINARY_DIR ${CMAKE_BINARY_DIR}/third_party/vmallocator)

@@ -23,8 +23,11 @@
 #        error "fairy-viewer not support 32-bit windows platform!"
 #    endif
 #elif defined(__linux__)
-#    define FV_PLATFORM_LINUX
-#    error "fairy-viewer not support linux platform!"
+#    if __LP64__
+#        define FV_PLATFORM_LINUX
+#    else
+#        error "fairy-viewer not support 32-bit linux platform!"
+#    endif
 #elif defined(__ANDROID__)
 #    define FV_PLATFORM_ANDROID
 #    error "fairy-viewer not support android platform!"

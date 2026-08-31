@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <memory>
 #include <vulkan/vulkan.hpp>
 #include "ktm/ktm.h"
 #include "../fairy_viewer.hpp"
