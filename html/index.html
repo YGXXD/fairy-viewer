@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>My Page</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            text-align: center;
+        }
+
+        video {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>fairy-viewer</h1>
+    <video id="remoteVideo" width="1600" height="900" autoplay playsinline muted></video>
+</body>
+
+<script>
+    async function startWebRTC() {
+        const peerConnection = new RTCPeerConnection({});
+        peerConnection.ontrack = (event) => {
+            const video = document.getElementById("remoteVideo");
+            video.srcObject = event.streams[0];
+            video.onloadedmetadata = () => {
+                video.play().catch(e => console.log('play error', e));
+            };
+        };
+        peerConnection.onconnectionstatechange = () => {
+            console.log("Connection state changed:", peerConnection.connectionState);
+        };
+        const offerResponse = await fetch("/offer", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            }
+        });
+        const content = await offerResponse.json();
+        peerConnection.setRemoteDescription({
+            sdp: content.sdp,
+            type: content.type
+        });
+        const answer = await peerConnection.createAnswer();
+        await peerConnection.setLocalDescription(answer);
+        const answerResponse = await fetch("/answer", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                key: content.key,
+                sdp: peerConnection.localDescription.sdp,
+                type: peerConnection.localDescription.type
+            })
+        });
+    }
+    startWebRTC();
+
+</script>
+
+</html>

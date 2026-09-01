@@ -27,7 +27,6 @@ void FairyViewerApp::Run()
 {
     fv::GpuContext::Init();
     InitSDLContext();
-
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
