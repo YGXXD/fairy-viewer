@@ -45,18 +45,13 @@ find_package(Vulkan REQUIRED)
 target_link_libraries(${FAIRY_VIEWER_CORE} PUBLIC Vulkan::Vulkan)
 
 # shaderc
-find_package(Vulkan REQUIRED COMPONENTS shaderc_combined)
-target_link_libraries(${FAIRY_VIEWER_CORE} PUBLIC Vulkan::shaderc_combined)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-	find_library(GLSLANG_LIB glslang REQUIRED)
-	find_library(SPIRV_TOOLS_LIB SPIRV-Tools REQUIRED)
-	find_library(SPIRV_TOOLS_OPT_LIB SPIRV-Tools-opt REQUIRED)
-	target_link_libraries(${FAIRY_VIEWER_CORE} PUBLIC 
-        ${GLSLANG_LIB} 
-    	${SPIRV_TOOLS_OPT_LIB}
-    	${SPIRV_TOOLS_LIB}
-    )
-endif()
+set(SHADERC_SKIP_TESTS ON)
+set(SHADERC_SKIP_EXAMPLES ON)
+set(SHADERC_SKIP_EXECUTABLES ON)
+set(SHADERC_SKIP_COPYRIGHT_CHECK ON)
+set(SHADERC_ENABLE_HLSL OFF)
+add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/shaderc)
+target_link_libraries(${FAIRY_VIEWER_CORE} PUBLIC shaderc)
 
 # vmallocator
 set(VMALLOCATOR_SOURCE_DIR ${CMAKE_SOURCE_DIR}/third_party/vmallocator)

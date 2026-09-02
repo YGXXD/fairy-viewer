@@ -22,3 +22,6 @@
 [submodule "third_party/cpp-httplib"]
 	path = third_party/cpp-httplib
 	url = https://github.com/yhirose/cpp-httplib.git
+[submodule "third_party/shaderc"]
+	path = third_party/shaderc
+	url = https://github.com/google/shaderc.git
