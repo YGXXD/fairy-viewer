@@ -121,7 +121,9 @@ void FairyStreamThread::FairyStreamThreadMain()
 
 bool FairyStreamThread::InitCodec()
 {
-    codec_ = avcodec_find_encoder(AV_CODEC_ID_H264);
+    codec_ = avcodec_find_encoder_by_name("h264_nvenc");
+    if (!codec_)
+        codec_ = avcodec_find_encoder_by_name("libx264");
     if (!codec_)
         return false;
     codec_context_ = avcodec_alloc_context3(codec_);
@@ -135,13 +137,21 @@ bool FairyStreamThread::InitCodec()
     codec_context_->max_b_frames = 0;
     codec_context_->pix_fmt = AV_PIX_FMT_YUV420P;
     codec_context_->gop_size = fps_;
-    packet_ = av_packet_alloc();
-    if (!packet_)
-        return false;
-    av_opt_set(codec_context_->priv_data, "preset", "ultrafast", 0);
-    av_opt_set(codec_context_->priv_data, "tune", "zerolatency", 0);
+    if (strcmp(codec_->name, "h264_nvenc") == 0)
+    {
+        av_opt_set(codec_context_->priv_data, "preset", "p4", 0);
+        av_opt_set(codec_context_->priv_data, "tune", "ll", 0);
+    }
+    else
+    {
+        av_opt_set(codec_context_->priv_data, "preset", "ultrafast", 0);
+        av_opt_set(codec_context_->priv_data, "tune", "zerolatency", 0);
+    }
     av_opt_set(codec_context_->priv_data, "profile", "baseline", 0);
     if (avcodec_open2(codec_context_, codec_, nullptr) < 0)
+        return false;
+    packet_ = av_packet_alloc();
+    if (!packet_)
         return false;
     frame_ = av_frame_alloc();
     if (!frame_)

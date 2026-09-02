@@ -1,9 +1,9 @@
 #include "fairy_surface.hpp"
 #include "fairy_pipeline.hpp"
-#include "../render_core/gpu_context.hpp"
-#include "../render_core/gpu_texture.hpp"
+#include "../gpu/gpu_context.hpp"
+#include "../gpu/gpu_texture.hpp"
 
-namespace fv
+namespace fairy
 {
 
 FairySurface::FairySurface(uint32_t width, uint32_t height, vk::Format format, FairySurfaceUsage usage,
@@ -18,7 +18,7 @@ FairySurface::FairySurface(uint32_t width, uint32_t height, vk::Format format, F
 
 FairySurface::~FairySurface()
 {
-    GpuContext& gpu_context = GpuContext::Get();
+    gpu::GpuContext& gpu_context = gpu::GpuContext::Get();
     gpu_context.device.freeCommandBuffers(render_command_pool_, render_command_buffers_);
     gpu_context.device.destroyCommandPool(render_command_pool_);
     for (int i = 0; i < buffer_count_; ++i)
@@ -91,7 +91,7 @@ void FairySurface::Render(const FairyPipeline* fairy_pipeline, int index)
         submit_info.signalSemaphoreCount = need_signal_semaphores_.size();
         submit_info.pSignalSemaphores = need_signal_semaphores_.data();
     }
-    GpuContext::Get().device.resetFences(render_fences_[index]);
+    gpu::GpuContext::Get().device.resetFences(render_fences_[index]);
     render_queue_.submit(submit_info, render_fences_[index]);
     need_wait_semaphores_.clear();
     need_wait_stages_.clear();
@@ -100,12 +100,13 @@ void FairySurface::Render(const FairyPipeline* fairy_pipeline, int index)
 
 void FairySurface::WaitRenderComplete()
 {
-    auto _ = GpuContext::Get().device.waitForFences(render_fences_, true, std::numeric_limits<uint64_t>::max());
+    auto _ = gpu::GpuContext::Get().device.waitForFences(render_fences_, true, std::numeric_limits<uint64_t>::max());
 }
 
 void FairySurface::WaitRenderComplete(int index)
 {
-    auto _ = GpuContext::Get().device.waitForFences(render_fences_[index], true, std::numeric_limits<uint64_t>::max());
+    auto _ =
+        gpu::GpuContext::Get().device.waitForFences(render_fences_[index], true, std::numeric_limits<uint64_t>::max());
 }
 
 void FairySurface::CreateRenderPass()
@@ -146,7 +147,7 @@ void FairySurface::CreateRenderPass()
     renderPassInfo.subpassCount = 1;
     renderPassInfo.pSubpasses = &subpass;
 
-    render_pass_ = GpuContext::Get().device.createRenderPass(renderPassInfo);
+    render_pass_ = gpu::GpuContext::Get().device.createRenderPass(renderPassInfo);
 }
 
 void FairySurface::CreateRenderTarget()
@@ -164,8 +165,8 @@ void FairySurface::CreateRenderTarget()
     render_targets_.reserve(buffer_count_);
     for (int i = 0; i < buffer_count_; ++i)
     {
-        render_targets_.emplace_back(std::unique_ptr<GpuTexture>(
-            new GpuTexture(width_, height_, format_, image_usage, vk::MemoryPropertyFlagBits::eDeviceLocal)));
+        render_targets_.emplace_back(std::unique_ptr<gpu::GpuTexture>(
+            new gpu::GpuTexture(width_, height_, format_, image_usage, vk::MemoryPropertyFlagBits::eDeviceLocal)));
     }
 }
 
@@ -182,13 +183,13 @@ void FairySurface::CreateFramebuffer()
         frame_buffer_create_info.width = width_;
         frame_buffer_create_info.height = height_;
         frame_buffer_create_info.layers = 1;
-        framebuffers_.emplace_back(GpuContext::Get().device.createFramebuffer(frame_buffer_create_info));
+        framebuffers_.emplace_back(gpu::GpuContext::Get().device.createFramebuffer(frame_buffer_create_info));
     }
 }
 
 void FairySurface::CreateSubmitResource()
 {
-    GpuContext& gpu_context = GpuContext::Get();
+    gpu::GpuContext& gpu_context = gpu::GpuContext::Get();
     render_queue_ = gpu_context.device.getQueue(gpu_context.queue_family_index, 0);
 
     vk::CommandPoolCreateInfo command_pool_create_info = {};
@@ -212,4 +213,4 @@ void FairySurface::CreateSubmitResource()
     }
 }
 
-} // namespace fv
+} // namespace fairy

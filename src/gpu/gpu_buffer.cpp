@@ -1,7 +1,7 @@
 #include "gpu_buffer.hpp"
 #include "gpu_context.hpp"
 
-namespace fv
+namespace gpu
 {
 
 GpuBuffer::GpuBuffer(size_t size, vk::BufferUsageFlags buffer_usage, vk::MemoryPropertyFlags memory_property)
@@ -55,4 +55,4 @@ GpuBuffer::MakeBufferViewCreateInfo(vk::Format buffer_format, VkDeviceSize offse
     return create_info;
 }
 
-} // namespace fv
+} // namespace gpu

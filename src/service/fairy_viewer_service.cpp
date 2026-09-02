@@ -1,7 +1,7 @@
 #include "fairy_viewer_service.hpp"
 #include "fairy_stream_thread.hpp"
 #include "fairy_render_thread.hpp"
-#include "../render_core/gpu_context.hpp"
+#include "../gpu/gpu_context.hpp"
 #include "httplib.h"
 #include "nlohmann/json.hpp"
 
@@ -28,11 +28,11 @@ void FairyViewerService::Run()
     g_fairy_viewer_service = this;
     rtc::InitLogger(rtc::LogLevel::Info);
     rtc::Preload();
-    fv::GpuContext::Init();
+    gpu::GpuContext::Init();
     render_thread_ =
         std::make_unique<FairyRenderThread>(fairy_surface_width_, fairy_surface_height_, fairy_buffer_count_);
     httplib::Server svr;
-    svr.set_mount_point("/", "./html");
+    svr.set_mount_point("/", FAIRY_ASSETS_PATH);
     svr.Post("/offer", [](const httplib::Request& req, httplib::Response& res)
     {
         std::unique_ptr<FairyStreamThread> stream_thread = std::make_unique<FairyStreamThread>();
@@ -74,7 +74,7 @@ void FairyViewerService::Run()
     std::cout << "[HttpServer]:" << &svr << ": Start HttpServer On http://0.0.0.0:8080" << std::endl;
     svr.listen("0.0.0.0", 8080);
     render_thread_.reset();
-    fv::GpuContext::Quit();
+    gpu::GpuContext::Quit();
     rtc::Cleanup();
     g_fairy_viewer_service = nullptr;
 }

@@ -5,7 +5,7 @@
 #include "../fairy_viewer.hpp"
 #include "vk_mem_alloc.h"
 
-namespace fv
+namespace gpu
 {
 
 class GpuTexture
@@ -37,4 +37,4 @@ private:
     void* host_pointer_;
 };
 
-} // namespace fv
+} // namespace gpu

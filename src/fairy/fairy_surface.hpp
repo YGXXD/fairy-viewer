@@ -6,7 +6,13 @@
 #include "../fairy_viewer.hpp"
 #include "vk_mem_alloc.h"
 
-namespace fv
+namespace gpu
+{
+class GpuBuffer;
+class GpuTexture;
+} // namespace gpu
+
+namespace fairy
 {
 
 enum class FairySurfaceUsage
@@ -15,8 +21,6 @@ enum class FairySurfaceUsage
     eCopy
 };
 
-class GpuBuffer;
-class GpuTexture;
 class FairyPipeline;
 class FairySurface
 {
@@ -31,7 +35,7 @@ public:
     void WaitRenderComplete();
     void WaitRenderComplete(int index);
     FV_INLINE uint32_t BufferCount() const { return buffer_count_; }
-    FV_INLINE const GpuTexture* RenderTarget(int index) const { return render_targets_[index].get(); };
+    FV_INLINE const gpu::GpuTexture* RenderTarget(int index) const { return render_targets_[index].get(); };
     FV_INLINE vk::RenderPass RenderPass() const { return render_pass_; }
 
 private:
@@ -47,7 +51,7 @@ private:
     uint32_t buffer_count_;
 
     vk::RenderPass render_pass_;
-    std::vector<std::unique_ptr<GpuTexture>> render_targets_;
+    std::vector<std::unique_ptr<gpu::GpuTexture>> render_targets_;
     std::vector<vk::Framebuffer> framebuffers_;
 
     vk::Queue render_queue_;
@@ -60,4 +64,4 @@ private:
     std::vector<vk::Semaphore> need_signal_semaphores_;
 };
 
-} // namespace fv
+} // namespace fairy

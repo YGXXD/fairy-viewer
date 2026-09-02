@@ -1,7 +1,7 @@
 #include "gpu_texture.hpp"
 #include "gpu_context.hpp"
 
-namespace fv
+namespace gpu
 {
 
 static constexpr vk::ImageAspectFlags SubresourceAspectMask(vk::Format format)
@@ -102,4 +102,4 @@ std::unique_ptr<vk::ImageViewCreateInfo> GpuTexture::MakeImageViewCreateInfo() c
     return create_info;
 }
 
-} // namespace fv
+} // namespace gpu

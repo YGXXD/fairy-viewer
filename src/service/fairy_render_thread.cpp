@@ -1,9 +1,9 @@
 #include "fairy_render_thread.hpp"
-#include "../render_core/gpu_buffer.hpp"
-#include "../render_core/gpu_texture.hpp"
-#include "../render_core/gpu_context.hpp"
-#include "../render_fairy/fairy_surface.hpp"
-#include "../render_fairy/fairy_pipeline.hpp"
+#include "../gpu/gpu_buffer.hpp"
+#include "../gpu/gpu_texture.hpp"
+#include "../gpu/gpu_context.hpp"
+#include "../fairy/fairy_surface.hpp"
+#include "../fairy/fairy_pipeline.hpp"
 
 #include <iostream>
 
@@ -31,15 +31,15 @@ FairyRenderThread::~FairyRenderThread()
 
 std::unique_ptr<uint8_t[]> FairyRenderThread::RequestCopySurface()
 {
-    std::promise<std::pair<std::shared_ptr<fv::GpuBuffer>, vk::Fence>> promise;
-    std::future<std::pair<std::shared_ptr<fv::GpuBuffer>, vk::Fence>> future = promise.get_future();
+    std::promise<std::pair<std::shared_ptr<gpu::GpuBuffer>, vk::Fence>> promise;
+    std::future<std::pair<std::shared_ptr<gpu::GpuBuffer>, vk::Fence>> future = promise.get_future();
     {
         std::lock_guard lock(surface_copy_mutex_);
         surface_copy_promises_.emplace_back(std::move(promise));
     }
     future.wait();
     auto [gpu_buffer, fence] = future.get();
-    auto _ = fv::GpuContext::Get().device.waitForFences(fence, true, std::numeric_limits<uint64_t>::max());
+    auto _ = gpu::GpuContext::Get().device.waitForFences(fence, true, std::numeric_limits<uint64_t>::max());
     if (gpu_buffer->HostPointer())
     {
         auto result = std::unique_ptr<uint8_t[]>(new uint8_t[gpu_buffer->Size()]);
@@ -55,7 +55,7 @@ void FairyRenderThread::FairyRenderThreadMain()
     InitFairy();
     while (is_run_.load())
     {
-        std::vector<std::promise<std::pair<std::shared_ptr<fv::GpuBuffer>, vk::Fence>>> surface_copy_promises {};
+        std::vector<std::promise<std::pair<std::shared_ptr<gpu::GpuBuffer>, vk::Fence>>> surface_copy_promises {};
         {
             std::lock_guard lock(surface_copy_mutex_);
             if (!surface_copy_promises_.empty())
@@ -67,7 +67,7 @@ void FairyRenderThread::FairyRenderThreadMain()
         if (!surface_copy_promises.empty())
         {
             size_t buffer_size = surface_width_ * surface_height_ * 4;
-            std::shared_ptr<fv::GpuBuffer> buffer = std::unique_ptr<fv::GpuBuffer>(new fv::GpuBuffer(
+            std::shared_ptr<gpu::GpuBuffer> buffer = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
                 buffer_size, vk::BufferUsageFlagBits::eTransferDst,
                 vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
             vk::CommandBuffer gpu_command_buffer = gpu_command_buffers_[current_render_index_];
@@ -75,7 +75,7 @@ void FairyRenderThread::FairyRenderThreadMain()
             vk::CommandBufferBeginInfo begin_info = {};
             begin_info.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
             gpu_command_buffer.begin(begin_info);
-            const fv::GpuTexture* render_target = fairy_surface_->RenderTarget(current_render_index_);
+            const gpu::GpuTexture* render_target = fairy_surface_->RenderTarget(current_render_index_);
             vk::BufferImageCopy region = {};
             region.bufferOffset = 0;
             region.bufferRowLength = 0;
@@ -94,7 +94,7 @@ void FairyRenderThread::FairyRenderThreadMain()
             submit_info.waitSemaphoreCount = 1;
             submit_info.pWaitSemaphores = &fairy_complete_signals_[current_render_index_];
             submit_info.pWaitDstStageMask = &gpu_wait_stage;
-            fv::GpuContext::Get().device.resetFences(gpu_fences_[current_render_index_]);
+            gpu::GpuContext::Get().device.resetFences(gpu_fences_[current_render_index_]);
             is_gpu_fence_reset_[current_render_index_] = true;
             gpu_queue_.submit(submit_info, gpu_fences_[current_render_index_]);
             for (auto& promise : surface_copy_promises)
@@ -105,8 +105,8 @@ void FairyRenderThread::FairyRenderThreadMain()
             fairy_surface_->WaitRenderComplete(current_render_index_);
         else
         {
-            auto _ = fv::GpuContext::Get().device.waitForFences(gpu_fences_[current_render_index_], true,
-                                                                std::numeric_limits<uint64_t>::max());
+            auto _ = gpu::GpuContext::Get().device.waitForFences(gpu_fences_[current_render_index_], true,
+                                                                 std::numeric_limits<uint64_t>::max());
             is_gpu_fence_reset_[current_render_index_] = false;
         }
     }
@@ -117,8 +117,8 @@ void FairyRenderThread::FairyRenderThreadMain()
             fairy_surface_->WaitRenderComplete(current_render_index_);
         else
         {
-            auto _ = fv::GpuContext::Get().device.waitForFences(gpu_fences_[current_render_index_], true,
-                                                                std::numeric_limits<uint64_t>::max());
+            auto _ = gpu::GpuContext::Get().device.waitForFences(gpu_fences_[current_render_index_], true,
+                                                                 std::numeric_limits<uint64_t>::max());
             is_gpu_fence_reset_[current_render_index_] = false;
         }
     }
@@ -128,7 +128,7 @@ void FairyRenderThread::FairyRenderThreadMain()
 
 void FairyRenderThread::InitAppSubmitContext()
 {
-    fv::GpuContext& gpu_context = fv::GpuContext::Get();
+    gpu::GpuContext& gpu_context = gpu::GpuContext::Get();
     gpu_queue_ = gpu_context.device.getQueue(gpu_context.queue_family_index, 0);
     vk::CommandPoolCreateInfo command_pool_create_info = {};
     command_pool_create_info.queueFamilyIndex = gpu_context.queue_family_index;
@@ -152,7 +152,7 @@ void FairyRenderThread::InitAppSubmitContext()
 
 void FairyRenderThread::DestoryAppSubmitContext()
 {
-    fv::GpuContext& gpu_context = fv::GpuContext::Get();
+    gpu::GpuContext& gpu_context = gpu::GpuContext::Get();
     gpu_context.device.freeCommandBuffers(gpu_command_pool_, gpu_command_buffers_);
     gpu_context.device.destroyCommandPool(gpu_command_pool_);
     for (int i = 0; i < buffer_count_; ++i)
@@ -161,9 +161,9 @@ void FairyRenderThread::DestoryAppSubmitContext()
 
 void FairyRenderThread::InitFairy()
 {
-    fairy_surface_ = std::unique_ptr<fv::FairySurface>(new fv::FairySurface(
-        surface_width_, surface_height_, surface_format_, fv::FairySurfaceUsage::eCopy, buffer_count_));
-    fairy_pipeline_ = std::unique_ptr<fv::FairyPipeline>(new fv::FairyPipeline());
+    fairy_surface_ = std::unique_ptr<fairy::FairySurface>(new fairy::FairySurface(
+        surface_width_, surface_height_, surface_format_, fairy::FairySurfaceUsage::eCopy, buffer_count_));
+    fairy_pipeline_ = std::unique_ptr<fairy::FairyPipeline>(new fairy::FairyPipeline());
     const std::string default_shader = R"(/*
     shadertoy.com input variables
     uniform vec3      iResolution;           // viewport resolution (in pixels)
@@ -192,7 +192,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     ResetPipeline(default_shader);
     fairy_complete_signals_.reserve(buffer_count_);
     for (int i = 0; i < buffer_count_; ++i)
-        fairy_complete_signals_.emplace_back(fv::GpuContext::Get().device.createSemaphore({}));
+        fairy_complete_signals_.emplace_back(gpu::GpuContext::Get().device.createSemaphore({}));
 }
 
 void FairyRenderThread::DestoryFairy()
@@ -200,7 +200,7 @@ void FairyRenderThread::DestoryFairy()
     fairy_surface_.reset();
     fairy_pipeline_.reset();
     for (auto& semaphore : fairy_complete_signals_)
-        fv::GpuContext::Get().device.destroySemaphore(semaphore);
+        gpu::GpuContext::Get().device.destroySemaphore(semaphore);
 }
 
 void FairyRenderThread::RenderFairy(int index)

@@ -3,10 +3,10 @@
 #include "imgui.h"
 #include "backends/imgui_impl_sdl3.h"
 #include "backends/imgui_impl_sdlrenderer3.h"
-#include "../render_core/gpu_context.hpp"
-#include "../render_core/gpu_texture.hpp"
-#include "../render_fairy/fairy_surface.hpp"
-#include "../render_fairy/fairy_pipeline.hpp"
+#include "../gpu/gpu_context.hpp"
+#include "../gpu/gpu_texture.hpp"
+#include "../fairy/fairy_surface.hpp"
+#include "../fairy/fairy_pipeline.hpp"
 #include "fairy_viewer_app_shaders.hpp"
 
 #include <iostream>
@@ -25,7 +25,7 @@ FairyViewerApp::~FairyViewerApp() = default;
 
 void FairyViewerApp::Run()
 {
-    fv::GpuContext::Init();
+    gpu::GpuContext::Init();
     InitSDLContext();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -72,18 +72,18 @@ void FairyViewerApp::Run()
     ImGui_ImplSDL3_Shutdown();
     ImGui::DestroyContext();
     DestroySDLContext();
-    fv::GpuContext::Quit();
+    gpu::GpuContext::Quit();
 }
 
 void FairyViewerApp::InitSDLContext()
 {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
-    fv::GpuContext::Init();
+    gpu::GpuContext::Init();
     window_ = SDL_CreateWindow(title_, window_width_, window_height_, SDL_WINDOW_RESIZABLE);
     SDL_ShowWindow(window_);
     SDL_StartTextInput(window_);
 
-    fv::GpuContext& gpu_context = fv::GpuContext::Get();
+    gpu::GpuContext& gpu_context = gpu::GpuContext::Get();
     SDL_PropertiesID renderer_props = SDL_CreateProperties();
     SDL_SetStringProperty(renderer_props, SDL_PROP_RENDERER_CREATE_NAME_STRING, "vulkan");
     SDL_SetPointerProperty(renderer_props, SDL_PROP_RENDERER_CREATE_WINDOW_POINTER, window_);
@@ -104,7 +104,7 @@ void FairyViewerApp::InitSDLContext()
         std::cerr << SDL_GetError() << std::endl;
     SDL_SetRenderDrawColorFloat(renderer_, 0.f, 0.f, 0.f, 1.0f);
 
-    SDL_IOStream* png_io = SDL_IOFromFile(ASSETS_PATH "nfl.png", "rb");
+    SDL_IOStream* png_io = SDL_IOFromFile(FAIRY_ASSETS_PATH "/nfl.png", "rb");
     SDL_Surface* surface = IMG_LoadPNG_IO(png_io);
     SDL_CloseIO(png_io);
     sdl_image_texture_ = SDL_CreateTextureFromSurface(renderer_, surface);
@@ -124,9 +124,9 @@ void FairyViewerApp::InitFairy()
     fairy_buffer_count_ = SDL_GetNumberProperty(SDL_GetRendererProperties(renderer_),
                                                 SDL_PROP_RENDERER_VULKAN_SWAPCHAIN_IMAGE_COUNT_NUMBER, 2);
     fairy_surface_format_ = vk::Format::eR8G8B8A8Srgb;
-    fairy_surface_ = std::unique_ptr<fv::FairySurface>(
-        new fv::FairySurface(fairy_surface_width_, fairy_surface_height_, fairy_surface_format_,
-                             fv::FairySurfaceUsage::eSample, fairy_buffer_count_));
+    fairy_surface_ = std::unique_ptr<fairy::FairySurface>(
+        new fairy::FairySurface(fairy_surface_width_, fairy_surface_height_, fairy_surface_format_,
+                                fairy::FairySurfaceUsage::eSample, fairy_buffer_count_));
 
     current_render_index_ = 0;
     fairy_complete_signals_.reserve(fairy_buffer_count_);
@@ -134,7 +134,7 @@ void FairyViewerApp::InitFairy()
     sdl_fairy_image_format_ = SDL_PIXELFORMAT_RGBA32;
     for (int i = 0; i < fairy_buffer_count_; ++i)
     {
-        fairy_complete_signals_.emplace_back(fv::GpuContext::Get().device.createSemaphore({}));
+        fairy_complete_signals_.emplace_back(gpu::GpuContext::Get().device.createSemaphore({}));
         SDL_PropertiesID texture_props = SDL_CreateProperties();
         VkImage fairy_surface_image = fairy_surface_->RenderTarget(i)->Image();
         SDL_SetNumberProperty(texture_props, SDL_PROP_TEXTURE_CREATE_WIDTH_NUMBER, fairy_surface_width_);
@@ -154,7 +154,7 @@ void FairyViewerApp::InitFairy()
     shader_editor_.SetTabSize(4);
     shader_editor_.SetReadOnly(false);
 
-    fairy_pipeline_ = std::unique_ptr<fv::FairyPipeline>(new fv::FairyPipeline());
+    fairy_pipeline_ = std::unique_ptr<fairy::FairyPipeline>(new fairy::FairyPipeline());
     ResetPipeline();
 }
 
@@ -189,7 +189,7 @@ void FairyViewerApp::DestroyFairy()
         SDL_DestroyTexture(texture);
     fairy_surface_.reset();
     for (const auto& semaphore : fairy_complete_signals_)
-        fv::GpuContext::Get().device.destroySemaphore(semaphore);
+        gpu::GpuContext::Get().device.destroySemaphore(semaphore);
     fairy_pipeline_.reset();
 }
 

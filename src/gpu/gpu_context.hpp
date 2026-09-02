@@ -4,7 +4,7 @@
 #include "../fairy_viewer.hpp"
 #include "vk_mem_alloc.h"
 
-namespace fv
+namespace gpu
 {
 
 class GpuContext
@@ -26,4 +26,4 @@ private:
     ~GpuContext();
 };
 
-} // namespace fv
+} // namespace gpu

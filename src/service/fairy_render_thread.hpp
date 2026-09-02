@@ -8,12 +8,16 @@
 #include <vulkan/vulkan.hpp>
 #include "ktm/ktm.h"
 
-namespace fv
+namespace gpu
 {
 class GpuBuffer;
+} // namespace gpu
+
+namespace fairy
+{
 class FairySurface;
 class FairyPipeline;
-} // namespace fv
+} // namespace fairy
 
 namespace service
 {
@@ -51,9 +55,9 @@ private:
     std::vector<vk::Fence> gpu_fences_;
     std::vector<bool> is_gpu_fence_reset_;
 
-    std::unique_ptr<fv::FairySurface> fairy_surface_;
+    std::unique_ptr<fairy::FairySurface> fairy_surface_;
     std::vector<vk::Semaphore> fairy_complete_signals_;
-    std::unique_ptr<fv::FairyPipeline> fairy_pipeline_;
+    std::unique_ptr<fairy::FairyPipeline> fairy_pipeline_;
     bool pipeline_reset_status_;
 
     int current_render_index_;
@@ -66,7 +70,7 @@ private:
     ktm::fvec4 i_date_;
 
     std::mutex surface_copy_mutex_;
-    std::vector<std::promise<std::pair<std::shared_ptr<fv::GpuBuffer>, vk::Fence>>> surface_copy_promises_;
+    std::vector<std::promise<std::pair<std::shared_ptr<gpu::GpuBuffer>, vk::Fence>>> surface_copy_promises_;
 };
 
 }; // namespace service

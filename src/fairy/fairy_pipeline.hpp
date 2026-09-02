@@ -6,11 +6,15 @@
 #include "ktm/ktm.h"
 #include "../fairy_viewer.hpp"
 
-namespace fv
+namespace gpu
 {
-
 class GpuBuffer;
 class GpuTexture;
+} // namespace gpu
+
+namespace fairy
+{
+
 class FairyPipeline
 {
 public:
@@ -67,19 +71,19 @@ private:
 
     vk::IndexType indices_type_;
     uint32_t indices_count_;
-    std::unique_ptr<GpuBuffer> indices_buffer_;
-    std::unique_ptr<GpuBuffer> i_resolution_buffer_;
-    std::unique_ptr<GpuBuffer> i_time_buffer_;
-    std::unique_ptr<GpuBuffer> i_time_delta_buffer_;
-    std::unique_ptr<GpuBuffer> i_frame_rate_buffer_;
-    std::unique_ptr<GpuBuffer> i_frame_buffer_;
-    std::unique_ptr<GpuBuffer> i_channel_time_4_buffer_;
-    std::unique_ptr<GpuBuffer> i_channel_resolution_4_buffer_;
-    std::unique_ptr<GpuBuffer> i_mouse_buffer_;
-    std::unique_ptr<GpuTexture> i_channel_4_texture_[4];
-    std::unique_ptr<GpuBuffer> i_date_buffer_;
+    std::unique_ptr<gpu::GpuBuffer> indices_buffer_;
+    std::unique_ptr<gpu::GpuBuffer> i_resolution_buffer_;
+    std::unique_ptr<gpu::GpuBuffer> i_time_buffer_;
+    std::unique_ptr<gpu::GpuBuffer> i_time_delta_buffer_;
+    std::unique_ptr<gpu::GpuBuffer> i_frame_rate_buffer_;
+    std::unique_ptr<gpu::GpuBuffer> i_frame_buffer_;
+    std::unique_ptr<gpu::GpuBuffer> i_channel_time_4_buffer_;
+    std::unique_ptr<gpu::GpuBuffer> i_channel_resolution_4_buffer_;
+    std::unique_ptr<gpu::GpuBuffer> i_mouse_buffer_;
+    std::unique_ptr<gpu::GpuTexture> i_channel_4_texture_[4];
+    std::unique_ptr<gpu::GpuBuffer> i_date_buffer_;
 
     std::string reset_error_message_;
 };
 
-} // namespace fv
+} // namespace fairy

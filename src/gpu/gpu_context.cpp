@@ -4,7 +4,7 @@
 #    include <iostream>
 #endif
 
-namespace fv
+namespace gpu
 {
 
 constexpr uint32_t vulkan_api_version_ = VK_API_VERSION_1_2;
@@ -185,4 +185,4 @@ GpuContext::GpuContext() = default;
 
 GpuContext::~GpuContext() = default;
 
-} // namespace fv
+} // namespace gpu

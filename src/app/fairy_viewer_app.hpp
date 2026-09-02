@@ -7,11 +7,11 @@
 #include "ktm/ktm.h"
 #include "TextEditor.h"
 
-namespace fv
+namespace fairy
 {
 class FairySurface;
 class FairyPipeline;
-}
+} // namespace fairy
 
 namespace app
 {
@@ -40,15 +40,15 @@ private:
     int window_height_;
     int fairy_surface_width_;
     int fairy_surface_height_;
-    
+
     SDL_Window* window_;
     SDL_Renderer* renderer_;
     SDL_Texture* sdl_image_texture_;
 
     int fairy_buffer_count_;
     vk::Format fairy_surface_format_;
-    std::unique_ptr<fv::FairySurface> fairy_surface_;
-    std::unique_ptr<fv::FairyPipeline> fairy_pipeline_;
+    std::unique_ptr<fairy::FairySurface> fairy_surface_;
+    std::unique_ptr<fairy::FairyPipeline> fairy_pipeline_;
     bool pipeline_reset_status_;
     std::vector<vk::Semaphore> fairy_complete_signals_;
 
@@ -70,4 +70,4 @@ private:
     int fps_curr_frame_;
 };
 
-}
+} // namespace app

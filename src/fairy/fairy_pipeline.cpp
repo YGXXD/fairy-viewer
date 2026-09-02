@@ -1,7 +1,7 @@
 #include "fairy_pipeline.hpp"
-#include "../render_core/gpu_context.hpp"
-#include "../render_core/gpu_buffer.hpp"
-#include "../render_core/gpu_texture.hpp"
+#include "../gpu/gpu_context.hpp"
+#include "../gpu/gpu_buffer.hpp"
+#include "../gpu/gpu_texture.hpp"
 #include "shaders.hpp"
 #include "shaderc/shaderc.hpp"
 
@@ -10,7 +10,7 @@
 #    include <iostream>
 #endif
 
-namespace fv
+namespace fairy
 {
 
 bool CompileShader(const char* source, size_t source_size, shaderc_shader_kind kind, std::vector<uint32_t>& out_spirv,
@@ -50,7 +50,7 @@ FairyPipeline::FairyPipeline()
 FairyPipeline::~FairyPipeline()
 {
     ClearFragmentShaderAndPipeline();
-    vk::Device device = GpuContext::Get().device;
+    vk::Device device = gpu::GpuContext::Get().device;
     device.destroyShaderModule(vertex_shader_);
     device.destroyPipelineLayout(pipeline_layout_);
     device.freeDescriptorSets(descriptor_pool_, descriptor_sets_);
@@ -152,7 +152,7 @@ void FairyPipeline::CreateDescriptorSetLayouts()
                                                                   i_time_delta_binding, i_frame_rate_binding,
                                                                   i_frame_binding,      i_mouse_binding,
                                                                   i_date_binding };
-    descriptor_set_layouts_.push_back(GpuContext::Get().device.createDescriptorSetLayout(
+    descriptor_set_layouts_.push_back(gpu::GpuContext::Get().device.createDescriptorSetLayout(
         vk::DescriptorSetLayoutCreateInfo({}, set0_bindings.size(), set0_bindings.data())));
 }
 
@@ -182,13 +182,13 @@ void FairyPipeline::CreateDescriptorPoolAndSets()
     descriptor_pool_create_info.pPoolSizes = pool_sizes.data();
     descriptor_pool_create_info.maxSets = 1;
     descriptor_pool_create_info.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
-    descriptor_pool_ = GpuContext::Get().device.createDescriptorPool(descriptor_pool_create_info);
+    descriptor_pool_ = gpu::GpuContext::Get().device.createDescriptorPool(descriptor_pool_create_info);
 
     vk::DescriptorSetAllocateInfo ds_allocate_info = {};
     ds_allocate_info.pSetLayouts = descriptor_set_layouts_.data();
     ds_allocate_info.descriptorPool = descriptor_pool_;
     ds_allocate_info.descriptorSetCount = descriptor_set_layouts_.size();
-    descriptor_sets_ = fv::GpuContext::Get().device.allocateDescriptorSets(ds_allocate_info);
+    descriptor_sets_ = gpu::GpuContext::Get().device.allocateDescriptorSets(ds_allocate_info);
 }
 
 void FairyPipeline::CreatePipelineLayout()
@@ -196,7 +196,7 @@ void FairyPipeline::CreatePipelineLayout()
     vk::PipelineLayoutCreateInfo pipeline_layout_create_info = {};
     pipeline_layout_create_info.setLayoutCount = descriptor_set_layouts_.size();
     pipeline_layout_create_info.pSetLayouts = descriptor_set_layouts_.data();
-    pipeline_layout_ = GpuContext::Get().device.createPipelineLayout(pipeline_layout_create_info);
+    pipeline_layout_ = gpu::GpuContext::Get().device.createPipelineLayout(pipeline_layout_create_info);
 }
 
 void FairyPipeline::CreateVertexShader()
@@ -204,7 +204,7 @@ void FairyPipeline::CreateVertexShader()
     vk::ShaderModuleCreateInfo shader_create_info = {};
     shader_create_info.codeSize = shader::fairy_vert_len;
     shader_create_info.pCode = reinterpret_cast<const uint32_t*>(shader::fairy_vert);
-    vertex_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
+    vertex_shader_ = gpu::GpuContext::Get().device.createShaderModule(shader_create_info);
 }
 
 bool FairyPipeline::CreateFragmentShader(const std::string& shader)
@@ -250,7 +250,7 @@ bool FairyPipeline::CreateFragmentShader(const std::string& shader)
         vk::ShaderModuleCreateInfo shader_create_info = {};
         shader_create_info.codeSize = fragment_shader_spirv.size() * 4;
         shader_create_info.pCode = fragment_shader_spirv.data();
-        fragment_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
+        fragment_shader_ = gpu::GpuContext::Get().device.createShaderModule(shader_create_info);
         return true;
     }
     else
@@ -258,7 +258,7 @@ bool FairyPipeline::CreateFragmentShader(const std::string& shader)
         vk::ShaderModuleCreateInfo shader_create_info = {};
         shader_create_info.codeSize = shader::fairy_frag_len;
         shader_create_info.pCode = reinterpret_cast<const uint32_t*>(shader::fairy_frag);
-        fragment_shader_ = GpuContext::Get().device.createShaderModule(shader_create_info);
+        fragment_shader_ = gpu::GpuContext::Get().device.createShaderModule(shader_create_info);
         return false;
     }
 }
@@ -335,19 +335,19 @@ void FairyPipeline::CreatePipeline(vk::RenderPass render_pass)
     pipeline_create_info.pDynamicState = &dynamic_states_create_info;
     pipeline_create_info.renderPass = render_pass;
     pipeline_create_info.subpass = 0;
-    pipeline_ = GpuContext::Get().device.createGraphicsPipeline(nullptr, pipeline_create_info).value;
+    pipeline_ = gpu::GpuContext::Get().device.createGraphicsPipeline(nullptr, pipeline_create_info).value;
 }
 
 void FairyPipeline::ClearFragmentShaderAndPipeline()
 {
     if (pipeline_)
     {
-        GpuContext::Get().device.destroyPipeline(pipeline_);
+        gpu::GpuContext::Get().device.destroyPipeline(pipeline_);
         pipeline_ = nullptr;
     }
     if (fragment_shader_)
     {
-        GpuContext::Get().device.destroyShaderModule(fragment_shader_);
+        gpu::GpuContext::Get().device.destroyShaderModule(fragment_shader_);
         fragment_shader_ = nullptr;
     }
 }
@@ -357,29 +357,29 @@ void FairyPipeline::CreateDrawIndices()
     const uint16_t rect_indices[] = { 0, 1, 2, 1, 3, 2 };
     indices_type_ = vk::IndexType::eUint16;
     indices_count_ = sizeof(rect_indices) / sizeof(uint16_t);
-    indices_buffer_ = std::unique_ptr<GpuBuffer>(new GpuBuffer(
+    indices_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
         sizeof(rect_indices), vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
     memcpy(indices_buffer_->HostPointer(), rect_indices, sizeof(rect_indices));
 }
 
 void FairyPipeline::CreateDrawResource()
 {
-    i_resolution_buffer_ = std::unique_ptr<GpuBuffer>(new GpuBuffer(
+    i_resolution_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
         sizeof(ktm::fvec3), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    i_time_buffer_ = std::unique_ptr<GpuBuffer>(new GpuBuffer(sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer,
-                                                              vk::MemoryPropertyFlagBits::eHostVisible));
-    i_time_delta_buffer_ = std::unique_ptr<GpuBuffer>(new GpuBuffer(
+    i_time_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
         sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    i_frame_rate_buffer_ = std::unique_ptr<GpuBuffer>(new GpuBuffer(
+    i_time_delta_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
         sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    i_frame_buffer_ = std::unique_ptr<GpuBuffer>(
-        new GpuBuffer(sizeof(int), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
+    i_frame_rate_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
+        sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
+    i_frame_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
+        sizeof(int), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
     // todo i_channel_time_4_buffer_
     // todo i_channel_resolution_4_buffer_
-    i_mouse_buffer_ = std::unique_ptr<GpuBuffer>(new GpuBuffer(
+    i_mouse_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
         sizeof(ktm::fvec4), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
     // todo i_channel_4_texture_
-    i_date_buffer_ = std::unique_ptr<GpuBuffer>(new GpuBuffer(
+    i_date_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
         sizeof(ktm::fvec4), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
 }
 
@@ -432,7 +432,7 @@ void FairyPipeline::BindResourceToDescriptSets()
         write_i_frame_rate_descriptor_set, write_i_frame_descriptor_set, write_i_mouse_descriptor_set,
         write_i_date_descriptor_set
     };
-    fv::GpuContext::Get().device.updateDescriptorSets(write_descriptor_sets, nullptr);
+    gpu::GpuContext::Get().device.updateDescriptorSets(write_descriptor_sets, nullptr);
 }
 
-} // namespace fv
+} // namespace fairy
