@@ -33,6 +33,7 @@ private:
     bool InitCodec();
     void DestoryCodec();
     void SendFrame(uint8_t* rgba_data);
+    void FlushFrame();
 
     int fps_;
     int frame_sync_time_;

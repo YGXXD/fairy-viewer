@@ -104,7 +104,11 @@ void FairyStreamThread::Stop()
 
 void FairyStreamThread::FairyStreamThreadMain()
 {
-    InitCodec();
+    if (!InitCodec())
+    {
+        std::cout << "[FairyStreamThread]:" << this << ": Codec Init Failed" << std::endl;
+        exit(-1);
+    }
     while (is_run_.load())
     {
         std::chrono::time_point frame_start = std::chrono::steady_clock::now();
@@ -115,7 +119,7 @@ void FairyStreamThread::FairyStreamThreadMain()
         if (frame_delta < frame_sync_time_)
             std::this_thread::sleep_for(std::chrono::milliseconds(frame_sync_time_ - frame_delta));
     }
-    SendFrame(nullptr);
+    FlushFrame();
     DestoryCodec();
 }
 
@@ -172,18 +176,6 @@ bool FairyStreamThread::InitCodec()
 
 void FairyStreamThread::DestoryCodec()
 {
-    int ret = avcodec_send_frame(codec_context_, nullptr);
-    if (ret < 0)
-        std::cout << "[FairyStreamThread]:" << this << ": Failed To Send Flush Frame" << std::endl;
-    while (ret >= 0)
-    {
-        ret = avcodec_receive_packet(codec_context_, packet_);
-        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
-            break;
-        else if (ret < 0)
-            break;
-        av_packet_unref(packet_);
-    }
     sws_freeContext(sws_context_);
     avcodec_free_context(&codec_context_);
     av_frame_free(&frame_);
@@ -218,6 +210,22 @@ void FairyStreamThread::SendFrame(uint8_t* rgba_data)
         frame_info.isKeyFrame = (packet_->flags & AV_PKT_FLAG_KEY);
         if (track_->isOpen())
             track_->sendFrame(std::move(frame_data), std::move(frame_info));
+        av_packet_unref(packet_);
+    }
+}
+
+void FairyStreamThread::FlushFrame()
+{
+    int ret = avcodec_send_frame(codec_context_, nullptr);
+    if (ret < 0)
+        std::cout << "[FairyStreamThread]:" << this << ": Failed To Send Flush Frame" << std::endl;
+    while (ret >= 0)
+    {
+        ret = avcodec_receive_packet(codec_context_, packet_);
+        if (ret == AVERROR(EAGAIN) || ret == AVERROR_EOF)
+            break;
+        else if (ret < 0)
+            break;
         av_packet_unref(packet_);
     }
 }
