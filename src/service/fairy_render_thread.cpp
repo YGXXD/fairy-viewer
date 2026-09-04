@@ -29,6 +29,30 @@ FairyRenderThread::~FairyRenderThread()
     std::cout << "[FairyRenderThread]:" << this << ": Stop Run Render Fairy" << std::endl;
 }
 
+std::optional<std::string> FairyRenderThread::RequestResetPipeline(const std::string& codes)
+{
+    std::promise<std::optional<std::string>> promise;
+    std::future<std::optional<std::string>> future = promise.get_future();
+    {
+        std::lock_guard lock(pipeline_reset_mutex_);
+        pipeline_reset_params_.emplace_back(codes, std::move(promise));
+    }
+    future.wait();
+    return future.get();
+}
+
+std::string FairyRenderThread::RequestCurrentResetCodes()
+{
+    std::promise<std::string> promise;
+    std::future<std::string> future = promise.get_future();
+    {
+        std::lock_guard lock(curren_reset_codes_mutex_);
+        curren_reset_codes_promises_.emplace_back(std::move(promise));
+    }
+    future.wait();
+    return future.get();
+}
+
 std::unique_ptr<uint8_t[]> FairyRenderThread::RequestCopySurface()
 {
     std::promise<std::pair<std::shared_ptr<gpu::GpuBuffer>, vk::Fence>> promise;
@@ -53,8 +77,30 @@ void FairyRenderThread::FairyRenderThreadMain()
 {
     InitAppSubmitContext();
     InitFairy();
+    current_render_index_ = 0;
     while (is_run_.load())
     {
+        {
+            std::lock_guard lock(pipeline_reset_mutex_);
+            if (!pipeline_reset_params_.empty())
+            {
+                auto [codes, promise] = std::move(pipeline_reset_params_.back());
+                pipeline_reset_params_.pop_back();
+                if (ResetPipeline(codes))
+                    promise.set_value(std::nullopt);
+                else
+                    promise.set_value(fairy_pipeline_->ResetErrorMessage());
+                for (auto& [_, promise] : pipeline_reset_params_)
+                    promise.set_value("reset failed: another reset request is override");
+                pipeline_reset_params_.clear();
+            }
+        }
+        {
+            std::lock_guard lock(curren_reset_codes_mutex_);
+            for (auto& promise : curren_reset_codes_promises_)
+                promise.set_value(current_reset_codes_);
+            curren_reset_codes_promises_.clear();
+        }
         std::vector<std::promise<std::pair<std::shared_ptr<gpu::GpuBuffer>, vk::Fence>>> surface_copy_promises {};
         {
             std::lock_guard lock(surface_copy_mutex_);
@@ -189,7 +235,11 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
     // Output to screen
     fragColor = vec4(col,1.0);
 })";
-    ResetPipeline(default_shader);
+    if (ResetPipeline(default_shader))
+        std::cout << "[FairyRenderThread]:" << this << ": Fairy Pipeline Reset Default Shader Success" << std::endl;
+    else
+        std::cout << "[FairyRenderThread]:" << this << ": Fairy Pipeline Reset Default Shader Failed\n"
+                  << fairy_pipeline_->ResetErrorMessage() << std::endl;
     fairy_complete_signals_.reserve(buffer_count_);
     for (int i = 0; i < buffer_count_; ++i)
         fairy_complete_signals_.emplace_back(gpu::GpuContext::Get().device.createSemaphore({}));
@@ -223,19 +273,9 @@ void FairyRenderThread::RenderFairy(int index)
     fairy_surface_->Render(fairy_pipeline_.get(), index);
 }
 
-void FairyRenderThread::ResetPipeline(const std::string& codes)
+bool FairyRenderThread::ResetPipeline(const std::string& codes)
 {
     fairy_surface_->WaitRenderComplete();
-    pipeline_reset_status_ = fairy_pipeline_->Reset(fairy_surface_->RenderPass(), codes);
-    if (pipeline_reset_status_)
-    {
-        std::cout << "[FairyRenderThread]:" << this << ": Fairy Pipeline Reset Success" << std::endl;
-    }
-    else
-    {
-        std::cout << "[FairyRenderThread]:" << this << ": Fairy Pipeline Reset Error\n"
-                  << fairy_pipeline_->ResetErrorMessage() << std::endl;
-    }
     fairy_start_ticks_ = std::chrono::steady_clock::now();
     i_time_ = 0;
     i_time_delta_ = 0;
@@ -243,6 +283,8 @@ void FairyRenderThread::ResetPipeline(const std::string& codes)
     i_frame_ = 0;
     i_mouse_ = ktm::fvec4 { 0, 0, 0, 0 };
     i_date_ = ktm::fvec4 { 0, 0, 0, 0 };
+    current_reset_codes_ = codes;
+    return fairy_pipeline_->Reset(fairy_surface_->RenderPass(), codes);
 }
 
 } // namespace service

@@ -2,70 +2,301 @@
 <html>
 
 <head>
-    <title>My Page</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>fairy-viewer</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
+            display: flex;
+            flex-direction: row;
+            height: 100vh;
+            background: #1a1a2e;
+            color: #eee;
+            font-family: sans-serif;
+            overflow: hidden;
+        }
+
+        .video-container {
+            flex: 1;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            margin: 0;
-            text-align: center;
+            background: #0d0d1a;
+            padding: 20px;
+            min-width: 0;
         }
 
-        video {
+        .video-container h1 {
+            margin-bottom: 20px;
+            color: #58a6ff;
+            font-weight: 300;
+            letter-spacing: 2px;
+            font-size: 1.8rem;
+        }
+
+        #remoteVideo {
             max-width: 100%;
+            max-height: 80vh;
+            border-radius: 8px;
+            background: #000;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+            object-fit: contain;
+            width: auto;
             height: auto;
         }
+
+        .editor-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #1e1e2e;
+            border-left: 2px solid #2d2d44;
+            padding: 12px;
+            min-width: 0;
+        }
+
+        .editor-toolbar {
+            display: flex;
+            align-items: center;
+            padding: 6px 12px;
+            background: #2d2d44;
+            border-radius: 6px 6px 0 0;
+            flex-shrink: 0;
+            margin-bottom: 8px;
+        }
+
+        .editor-toolbar span {
+            font-weight: 600;
+            color: #58a6ff;
+            margin-right: auto;
+            font-size: 14px;
+        }
+
+        #compile-btn {
+            padding: 4px 18px;
+            background: #4caf50;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s;
+            letter-spacing: 0.5px;
+        }
+
+        #compile-btn:hover {
+            background: #66bb6a;
+        }
+
+        #compile-btn:active {
+            background: #388e3c;
+        }
+
+        .editor-inner {
+            flex: 1;
+            min-height: 0;
+            border-radius: 0 0 6px 6px;
+            overflow: hidden;
+            background: #1e1e2e;
+        }
+
+        #monaco-editor {
+            width: 100%;
+            height: 100%;
+        }
+
+        @media (max-aspect-ratio: 1/1) {
+            body {
+                flex-direction: column;
+            }
+
+            .video-container {
+                width: 100%;
+                flex: 0 0 auto;
+                aspect-ratio: 16 / 9;
+                padding: 12px;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                background: #0d0d1a;
+                max-height: none;
+            }
+
+            .video-container h1 {
+                font-size: 1.4rem;
+                margin-bottom: 12px;
+            }
+
+            #remoteVideo {
+                width: 100%;
+                height: 100%;
+                max-height: none;
+                object-fit: contain;
+                border-radius: 8px;
+            }
+
+            .editor-wrapper {
+                flex: 1;
+                width: 100%;
+                border-left: none;
+                border-top: 2px solid #2d2d44;
+                padding: 10px;
+                min-height: 0;
+            }
+
+            .editor-toolbar {
+                padding: 4px 10px;
+            }
+
+            .editor-toolbar span {
+                font-size: 13px;
+            }
+
+            #compile-btn {
+                font-size: 12px;
+                padding: 3px 14px;
+            }
+        }
+
+        @media (max-aspect-ratio: 1/1) and (max-height: 500px) {
+            .video-container {
+                padding: 6px;
+            }
+
+            .video-container h1 {
+                font-size: 1rem;
+                margin-bottom: 6px;
+            }
+
+            .editor-wrapper {
+                padding: 6px;
+            }
+        }
     </style>
+    <link rel="stylesheet" data-name="vs/editor/editor.main"
+        href="https://cdn.jsdelivr.net/npm/monaco-editor@0.39.0/min/vs/editor/editor.main.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.39.0/min/vs/loader.js">
+    </script>
 </head>
 
 <body>
-    <h1>fairy-viewer</h1>
-    <video id="remoteVideo" width="1600" height="900" autoplay playsinline muted></video>
-</body>
+    <div class="video-container">
+        <h1>fairy-viewer</h1>
+        <video id="remoteVideo" autoplay playsinline muted></video>
+    </div>
 
-<script>
-    async function startWebRTC() {
-        const peerConnection = new RTCPeerConnection({});
-        peerConnection.ontrack = (event) => {
-            const video = document.getElementById("remoteVideo");
-            video.srcObject = event.streams[0];
-            video.onloadedmetadata = () => {
-                video.play().catch(e => console.log('play error', e));
-            };
-        };
-        peerConnection.onconnectionstatechange = () => {
-            console.log("Connection state changed:", peerConnection.connectionState);
-        };
-        const offerResponse = await fetch("/offer", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
+    <div class="editor-wrapper">
+        <div class="editor-toolbar">
+            <span>Shader Codes</span>
+            <button id="compile-btn">⚡ Compile</button>
+        </div>
+        <div class="editor-inner">
+            <div id="monaco-editor"></div>
+        </div>
+    </div>
+
+    <script>
+        require.config({
+            paths: {
+                vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.39.0/min/vs'
             }
         });
-        const content = await offerResponse.json();
-        peerConnection.setRemoteDescription({
-            sdp: content.sdp,
-            type: content.type
-        });
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        const answerResponse = await fetch("/answer", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                key: content.key,
-                sdp: peerConnection.localDescription.sdp,
-                type: peerConnection.localDescription.type
+
+        let editor;
+        require(['vs/editor/editor.main'], async function () {
+            const pipelineStatus = await fetch("/pipeline_status", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                }
+            });
+            const content = await pipelineStatus.json();
+            editor = monaco.editor.create(document.getElementById('monaco-editor'), {
+                language: 'glsl',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                fontSize: 13,
+                minimap: { enabled: false },
+                scrollbar: { vertical: 'auto' },
+                value: content.codes
+            });
+        }
+        );
+
+        document.getElementById('compile-btn').addEventListener('click', function () {
+            if (!editor) return;
+            const code = editor.getValue();
+            fetch("/pipeline_reset", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ codes: code })
+            }).then(response => {
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            }).then(data => {
+                console.log(data);
+            }).catch(error => {
+                console.error(error);
             })
         });
-    }
-    startWebRTC();
 
-</script>
+        async function startWebRTC() {
+            const peerConnection = new RTCPeerConnection({});
+            peerConnection.ontrack = (event) => {
+                const video = document.getElementById("remoteVideo");
+                video.srcObject = event.streams[0];
+                video.onloadedmetadata = () => {
+                    video.play().catch(e => console.log('play error', e));
+                };
+            };
+            peerConnection.onconnectionstatechange = () => {
+                console.log("Connection state changed:", peerConnection.connectionState);
+            };
+            try {
+                const offerResponse = await fetch("/offer", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                });
+                const content = await offerResponse.json();
+                peerConnection.setRemoteDescription({
+                    sdp: content.sdp,
+                    type: content.type
+                });
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                const answerResponse = await fetch("/answer", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        key: content.key,
+                        sdp: peerConnection.localDescription.sdp,
+                        type: peerConnection.localDescription.type
+                    })
+                });
+            } catch (error) {
+                console.error("webrtc connection error:", error);
+            }
+        }
+        startWebRTC();
+    </script>
+</body>
 
 </html>

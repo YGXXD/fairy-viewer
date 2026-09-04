@@ -81,6 +81,44 @@ void FairyViewerService::Run()
                 res.set_content("webrtc answer set failed", "text/plain");
             }
         });
+        svr.Post("/pipeline_status", [](const httplib::Request& req, httplib::Response& res)
+        {
+            nlohmann::json response = { { "codes", g_fairy_viewer_service->RenderThread()->RequestCurrentResetCodes() } };
+            res.set_content(response.dump(), "application/json");
+        });
+        svr.Post("/pipeline_reset", [](const httplib::Request& req, httplib::Response& res)
+        {
+            nlohmann::json body;
+            try
+            {
+                body = nlohmann::json::parse(req.body);
+            }
+            catch (const std::exception& e)
+            {
+                res.status = 400;
+                res.set_content("json parse failed", "text/plain");
+                return;
+            }
+            try
+            {
+                std::string codes = body["codes"].get<std::string>();
+                std::optional<std::string> reset_message =
+                    g_fairy_viewer_service->RenderThread()->RequestResetPipeline(codes);
+                if (reset_message.has_value())
+                {
+                    nlohmann::json response = { { "result", 0 }, { "message", reset_message.value() } };
+                    res.set_content(response.dump(), "application/json");
+                    return;
+                }
+                nlohmann::json response = { { "result", 1 }, { "message", "pipeline reset success" } };
+                res.set_content(response.dump(), "application/json");
+            }
+            catch (const std::exception& e)
+            {
+                res.status = 400;
+                res.set_content("pipeline reset failed", "text/plain");
+            }
+        });
         std::cout << "[HttpServer]:" << &svr << ": Start Http Server On http://0.0.0.0:8080" << std::endl;
         svr.listen("0.0.0.0", 8080);
         std::cout << "[HttpServer]:" << &svr << ": Stop Http Server" << std::endl;
