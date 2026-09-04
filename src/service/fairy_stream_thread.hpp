@@ -20,7 +20,7 @@ class FairyRenderThread;
 class FairyStreamThread final
 {
 public:
-    FairyStreamThread();
+    FairyStreamThread(int fps);
     ~FairyStreamThread();
 
     std::optional<rtc::Description> CreateOffer();
@@ -37,7 +37,6 @@ private:
 
     int fps_;
     int frame_sync_time_;
-    FairyRenderThread* render_thread_;
 
     std::unique_ptr<rtc::PeerConnection> peer_connection_;
     std::shared_ptr<rtc::Track> track_;

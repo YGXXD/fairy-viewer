@@ -2,7 +2,7 @@
 
 int main()
 {
-    service::FairyViewerService service(1600, 900, 3);
+    service::FairyViewerService service(1600, 900, 3, 60);
     service.Run();
     return 0;
 }

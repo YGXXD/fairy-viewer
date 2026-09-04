@@ -9,8 +9,8 @@
 namespace service
 {
 
-FairyStreamThread::FairyStreamThread()
-    : fps_(60), frame_sync_time_(1000 / fps_), render_thread_(FairyViewerService::Global()->RenderThread()),
+FairyStreamThread::FairyStreamThread(int fps)
+    : fps_(fps), frame_sync_time_(1000 / fps_),
       peer_connection_(std::make_unique<rtc::PeerConnection>(rtc::Configuration { .disableAutoNegotiation = true })),
       track_(), is_run_(false), run_thread_()
 {
@@ -34,27 +34,23 @@ FairyStreamThread::FairyStreamThread()
     peer_connection_->onStateChange([this](rtc::PeerConnection::State state)
     {
         std::cout << "[FairyStreamThread]:" << this << ": PeerConnection State: " << state << std::endl;
-        switch (state)
-        {
-        case rtc::PeerConnection::State::Connected:
-            Start();
-            break;
-        case rtc::PeerConnection::State::Disconnected:
-        case rtc::PeerConnection::State::Failed:
-        case rtc::PeerConnection::State::Closed:
-            Stop();
-            break;
-        default:
-            break;
-        }
     });
     track_->onOpen([this]()
     {
         std::cout << "[FairyStreamThread]:" << this << ": Vedio Track Is Open" << std::endl;
+        Start();
+    });
+    track_->onClosed([this]()
+    {
+        std::cout << "[FairyStreamThread]:" << this << ": Vedio Track Is Close" << std::endl;
+        FairyViewerService::Global()->RemoveStreamThread(this);
     });
 }
 
-FairyStreamThread::~FairyStreamThread() = default;
+FairyStreamThread::~FairyStreamThread()
+{
+    Stop();
+}
 
 std::optional<rtc::Description> FairyStreamThread::CreateOffer()
 {
@@ -87,7 +83,7 @@ void FairyStreamThread::Start()
         return;
     is_run_.store(true);
     run_thread_ = std::thread(&FairyStreamThread::FairyStreamThreadMain, this);
-    std::cout << "[FairyStreamThread]:" << this << ": Start Run" << std::endl;
+    std::cout << "[FairyStreamThread]:" << this << ": Start Run Push Stream" << std::endl;
 }
 
 void FairyStreamThread::Stop()
@@ -99,7 +95,7 @@ void FairyStreamThread::Stop()
     {
         run_thread_.join();
     }
-    std::cout << "[FairyStreamThread]:" << this << ": Stop Run" << std::endl;
+    std::cout << "[FairyStreamThread]:" << this << ": Stop Run Push Stream" << std::endl;
 }
 
 void FairyStreamThread::FairyStreamThreadMain()
@@ -112,7 +108,7 @@ void FairyStreamThread::FairyStreamThreadMain()
     while (is_run_.load())
     {
         std::chrono::time_point frame_start = std::chrono::steady_clock::now();
-        std::unique_ptr<uint8_t[]> rgba_data = render_thread_->RequestCopySurface();
+        std::unique_ptr<uint8_t[]> rgba_data = FairyViewerService::Global()->RenderThread()->RequestCopySurface();
         SendFrame(rgba_data.get());
         std::chrono::time_point frame_end = std::chrono::steady_clock::now();
         auto frame_delta = std::chrono::duration_cast<std::chrono::milliseconds>(frame_end - frame_start).count();
@@ -134,8 +130,8 @@ bool FairyStreamThread::InitCodec()
     if (!codec_context_)
         return false;
     codec_context_->bit_rate = 4000000;
-    codec_context_->width = render_thread_->SurfaceWidth();
-    codec_context_->height = render_thread_->SurfaceHeight();
+    codec_context_->width = FairyViewerService::Global()->RenderThread()->SurfaceWidth();
+    codec_context_->height = FairyViewerService::Global()->RenderThread()->SurfaceHeight();
     codec_context_->time_base = (AVRational) { 1, fps_ };
     codec_context_->framerate = (AVRational) { fps_, 1 };
     codec_context_->max_b_frames = 0;
