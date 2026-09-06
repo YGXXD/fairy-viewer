@@ -38,9 +38,9 @@ public:
 private:
     void FairyRenderThreadMain();
     void InitAppSubmitContext();
-    void DestoryAppSubmitContext();
+    void DestroyAppSubmitContext();
     void InitFairy();
-    void DestoryFairy();
+    void DestroyFairy();
     void RenderFairy(int index);
     bool ResetPipeline(const std::string& codes);
 
@@ -80,4 +80,4 @@ private:
     std::vector<std::promise<std::pair<std::shared_ptr<gpu::GpuBuffer>, vk::Fence>>> surface_copy_promises_;
 };
 
-}; // namespace service
+} // namespace service

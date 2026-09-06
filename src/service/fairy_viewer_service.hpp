@@ -34,4 +34,4 @@ private:
     std::unordered_map<FairyStreamThread*, std::unique_ptr<FairyStreamThread>> stream_threads_;
 };
 
-}; // namespace service
+} // namespace service

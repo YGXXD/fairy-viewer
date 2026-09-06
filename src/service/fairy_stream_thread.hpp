@@ -30,8 +30,9 @@ private:
     void Start();
     void Stop();
     void FairyStreamThreadMain();
+    void ZeroCodec();
     bool InitCodec();
-    void DestoryCodec();
+    void DestroyCodec();
     void SendFrame(uint8_t* rgba_data);
     void FlushFrame();
 
@@ -48,8 +49,12 @@ private:
     AVCodecContext* codec_context_;
     AVFrame* frame_;
     AVPacket* packet_;
-    std::chrono::steady_clock::time_point encode_start_ticks_;
     SwsContext* sws_context_;
+    bool enable_hw_encode_;
+    AVBufferRef* hw_device_ctx_;
+    AVBufferRef* hw_frames_ctx_;
+    AVFrame* hw_frame_;
+    std::chrono::steady_clock::time_point encode_start_ticks_;
 };
 
-}; // namespace service
+} // namespace service

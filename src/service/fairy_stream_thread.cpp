@@ -5,6 +5,8 @@
 
 #include <iostream>
 #include <future>
+#include <vector>
+#include <string_view>
 
 namespace service
 {
@@ -100,10 +102,12 @@ void FairyStreamThread::Stop()
 
 void FairyStreamThread::FairyStreamThreadMain()
 {
+    ZeroCodec();
     if (!InitCodec())
     {
         std::cout << "[FairyStreamThread]:" << this << ": Codec Init Failed" << std::endl;
-        exit(-1);
+        DestroyCodec();
+        return;
     }
     while (is_run_.load())
     {
@@ -116,16 +120,51 @@ void FairyStreamThread::FairyStreamThreadMain()
             std::this_thread::sleep_for(std::chrono::milliseconds(frame_sync_time_ - frame_delta));
     }
     FlushFrame();
-    DestoryCodec();
+    DestroyCodec();
+}
+
+void FairyStreamThread::ZeroCodec()
+{
+    codec_ = nullptr;
+    codec_context_ = nullptr;
+    frame_ = nullptr;
+    packet_ = nullptr;
+    sws_context_ = nullptr;
+    enable_hw_encode_ = false;
+    hw_device_ctx_ = nullptr;
+    hw_frames_ctx_ = nullptr;
+    hw_frame_ = nullptr;
 }
 
 bool FairyStreamThread::InitCodec()
 {
     codec_ = avcodec_find_encoder_by_name("h264_nvenc");
     if (!codec_)
+        codec_ = avcodec_find_encoder_by_name("h264_videotoolbox");
+    if (!codec_)
         codec_ = avcodec_find_encoder_by_name("libx264");
     if (!codec_)
         return false;
+    AVPixelFormat encode_format = AV_PIX_FMT_NV12;
+    AVPixelFormat hw_encode_format = AV_PIX_FMT_NONE;
+    AVHWDeviceType hw_device_type = AV_HWDEVICE_TYPE_NONE;
+    std::vector<std::pair<std::string_view, std::string_view>> priv_datas;
+    if (strcmp(codec_->name, "h264_nvenc") == 0)
+    {
+        hw_encode_format = AV_PIX_FMT_CUDA;
+        hw_device_type = AV_HWDEVICE_TYPE_CUDA;
+        priv_datas = { { "profile", "baseline" }, { "preset", "p4" }, { "tune", "ll" } };
+    }
+    else if (strcmp(codec_->name, "h264_videotoolbox") == 0)
+    {
+        hw_encode_format = AV_PIX_FMT_VIDEOTOOLBOX;
+        hw_device_type = AV_HWDEVICE_TYPE_VIDEOTOOLBOX;
+        priv_datas = { { "profile", "baseline" } };
+    }
+    else
+    {
+        priv_datas = { { "profile", "baseline" }, { "preset", "ultrafast" }, { "tune", "zerolatency" } };
+    }
     codec_context_ = avcodec_alloc_context3(codec_);
     if (!codec_context_)
         return false;
@@ -135,19 +174,34 @@ bool FairyStreamThread::InitCodec()
     codec_context_->time_base = (AVRational) { 1, fps_ };
     codec_context_->framerate = (AVRational) { fps_, 1 };
     codec_context_->max_b_frames = 0;
-    codec_context_->pix_fmt = AV_PIX_FMT_YUV420P;
+    codec_context_->pix_fmt = encode_format;
     codec_context_->gop_size = fps_;
-    if (strcmp(codec_->name, "h264_nvenc") == 0)
+    for (const auto& [name, val] : priv_datas)
+        av_opt_set(codec_context_->priv_data, name.data(), val.data(), 0);
+    if (hw_device_type != AV_HWDEVICE_TYPE_NONE)
     {
-        av_opt_set(codec_context_->priv_data, "preset", "p4", 0);
-        av_opt_set(codec_context_->priv_data, "tune", "ll", 0);
+        enable_hw_encode_ = true;
+        if (av_hwdevice_ctx_create(&hw_device_ctx_, hw_device_type, nullptr, nullptr, 0) < 0)
+            return false;
+        codec_context_->hw_device_ctx = av_buffer_ref(hw_device_ctx_);
+        hw_frames_ctx_ = av_hwframe_ctx_alloc(hw_device_ctx_);
+        if (!hw_frames_ctx_)
+            return false;
+        codec_context_->hw_frames_ctx = av_buffer_ref(hw_frames_ctx_);
+        codec_context_->pix_fmt = hw_encode_format;
+        codec_context_->sw_pix_fmt = encode_format;
+        AVHWFramesContext* hw_frames_ctx_ptr = reinterpret_cast<AVHWFramesContext*>(hw_frames_ctx_->data);
+        hw_frames_ctx_ptr->width = codec_context_->width;
+        hw_frames_ctx_ptr->height = codec_context_->height;
+        hw_frames_ctx_ptr->format = hw_encode_format;
+        hw_frames_ctx_ptr->sw_format = encode_format;
+        hw_frames_ctx_ptr->initial_pool_size = 4;
+        if (av_hwframe_ctx_init(hw_frames_ctx_) < 0)
+            return false;
+        hw_frame_ = av_frame_alloc();
+        if (!hw_frame_)
+            return false;
     }
-    else
-    {
-        av_opt_set(codec_context_->priv_data, "preset", "ultrafast", 0);
-        av_opt_set(codec_context_->priv_data, "tune", "zerolatency", 0);
-    }
-    av_opt_set(codec_context_->priv_data, "profile", "baseline", 0);
     if (avcodec_open2(codec_context_, codec_, nullptr) < 0)
         return false;
     packet_ = av_packet_alloc();
@@ -156,27 +210,33 @@ bool FairyStreamThread::InitCodec()
     frame_ = av_frame_alloc();
     if (!frame_)
         return false;
-    frame_->format = codec_context_->pix_fmt;
+    frame_->format = encode_format;
     frame_->width = codec_context_->width;
     frame_->height = codec_context_->height;
     if (av_frame_get_buffer(frame_, 0) < 0)
         return false;
-    encode_start_ticks_ = std::chrono::steady_clock::now();
     sws_context_ = sws_getContext(frame_->width, frame_->height, AV_PIX_FMT_RGBA, frame_->width, frame_->height,
-                                  AV_PIX_FMT_YUV420P, SWS_BILINEAR, nullptr, nullptr, nullptr);
+                                  encode_format, SWS_BILINEAR, nullptr, nullptr, nullptr);
     if (!sws_context_)
         return false;
     std::cout << "[FairyStreamThread]:" << this << ": Codec Init Success" << std::endl;
+    encode_start_ticks_ = std::chrono::steady_clock::now();
     return true;
 }
 
-void FairyStreamThread::DestoryCodec()
+void FairyStreamThread::DestroyCodec()
 {
     sws_freeContext(sws_context_);
     avcodec_free_context(&codec_context_);
     av_frame_free(&frame_);
     av_packet_free(&packet_);
-    std::cout << "[FairyStreamThread]:" << this << ": Codec Destory Success" << std::endl;
+    if (enable_hw_encode_)
+    {
+        av_buffer_unref(&hw_frames_ctx_);
+        av_buffer_unref(&hw_device_ctx_);
+        av_frame_free(&hw_frame_);
+    }
+    std::cout << "[FairyStreamThread]:" << this << ": Codec Destroy Success" << std::endl;
 }
 
 void FairyStreamThread::SendFrame(uint8_t* rgba_data)
@@ -185,14 +245,30 @@ void FairyStreamThread::SendFrame(uint8_t* rgba_data)
     int64_t delta_time_ =
         std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - encode_start_ticks_)
             .count();
-    av_frame_make_writable(frame_);
+    if (av_frame_make_writable(frame_) < 0)
+        std::cout << "[FairyStreamThread]:" << this << ": Failed To Make Frame Writable";
     const uint8_t* src_slice[1] = { rgba_data };
     int src_stride[1] = { frame_->width * 4 };
     sws_scale(sws_context_, src_slice, src_stride, 0, frame_->height, frame_->data, frame_->linesize);
-    frame_->pts = av_rescale_q(delta_time_, (AVRational) { 1, 1000 }, codec_context_->time_base);
-    ret = avcodec_send_frame(codec_context_, frame_);
-    if (ret < 0)
-        std::cout << "[FairyStreamThread]:" << this << ": Failed To Send Frame On Pts:" << frame_->pts;
+    if (enable_hw_encode_)
+    {
+        if (av_hwframe_get_buffer(hw_frames_ctx_, hw_frame_, 0) < 0)
+            std::cout << "[FairyStreamThread]:" << this << ": Failed To Alloc Hardware Frame";
+        if (av_hwframe_transfer_data(hw_frame_, frame_, 0) < 0)
+            std::cout << "[FairyStreamThread]:" << this << ": Failed To Transfer Software Frame To Hardware Frame";
+        hw_frame_->pts = av_rescale_q(delta_time_, (AVRational) { 1, 1000 }, codec_context_->time_base);
+        ret = avcodec_send_frame(codec_context_, hw_frame_);
+        if (ret < 0)
+            std::cout << "[FairyStreamThread]:" << this << ": Failed To Send Hardware Frame On Pts:" << hw_frame_->pts;
+        av_frame_unref(hw_frame_);
+    }
+    else
+    {
+        frame_->pts = av_rescale_q(delta_time_, (AVRational) { 1, 1000 }, codec_context_->time_base);
+        ret = avcodec_send_frame(codec_context_, frame_);
+        if (ret < 0)
+            std::cout << "[FairyStreamThread]:" << this << ": Failed To Send Frame On Pts:" << frame_->pts;
+    }
     while (ret >= 0)
     {
         ret = avcodec_receive_packet(codec_context_, packet_);

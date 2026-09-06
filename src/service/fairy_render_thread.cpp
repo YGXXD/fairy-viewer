@@ -168,8 +168,8 @@ void FairyRenderThread::FairyRenderThreadMain()
             is_gpu_fence_reset_[current_render_index_] = false;
         }
     }
-    DestoryFairy();
-    DestoryAppSubmitContext();
+    DestroyFairy();
+    DestroyAppSubmitContext();
 }
 
 void FairyRenderThread::InitAppSubmitContext()
@@ -196,7 +196,7 @@ void FairyRenderThread::InitAppSubmitContext()
     is_gpu_fence_reset_.resize(buffer_count_, false);
 }
 
-void FairyRenderThread::DestoryAppSubmitContext()
+void FairyRenderThread::DestroyAppSubmitContext()
 {
     gpu::GpuContext& gpu_context = gpu::GpuContext::Get();
     gpu_context.device.freeCommandBuffers(gpu_command_pool_, gpu_command_buffers_);
@@ -245,7 +245,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord )
         fairy_complete_signals_.emplace_back(gpu::GpuContext::Get().device.createSemaphore({}));
 }
 
-void FairyRenderThread::DestoryFairy()
+void FairyRenderThread::DestroyFairy()
 {
     fairy_surface_.reset();
     fairy_pipeline_.reset();
