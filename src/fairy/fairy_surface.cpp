@@ -141,13 +141,13 @@ void FairySurface::CreateRenderPass()
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
 
-    vk::RenderPassCreateInfo renderPassInfo = {};
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments = &color_attachment;
-    renderPassInfo.subpassCount = 1;
-    renderPassInfo.pSubpasses = &subpass;
+    vk::RenderPassCreateInfo render_pass_info = {};
+    render_pass_info.attachmentCount = 1;
+    render_pass_info.pAttachments = &color_attachment;
+    render_pass_info.subpassCount = 1;
+    render_pass_info.pSubpasses = &subpass;
 
-    render_pass_ = gpu::GpuContext::Get().device.createRenderPass(renderPassInfo);
+    render_pass_ = gpu::GpuContext::Get().device.createRenderPass(render_pass_info);
 }
 
 void FairySurface::CreateRenderTarget()
