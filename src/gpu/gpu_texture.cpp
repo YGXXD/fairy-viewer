@@ -4,30 +4,11 @@
 namespace gpu
 {
 
-static constexpr vk::ImageAspectFlags SubresourceAspectMask(vk::Format format)
-{
-    switch (format)
-    {
-    case vk::Format::eD16Unorm:
-    case vk::Format::eD32Sfloat:
-    case vk::Format::eX8D24UnormPack32:
-        return vk::ImageAspectFlagBits::eDepth;
-    case vk::Format::eS8Uint:
-        return vk::ImageAspectFlagBits::eStencil;
-    case vk::Format::eD16UnormS8Uint:
-    case vk::Format::eD24UnormS8Uint:
-    case vk::Format::eD32SfloatS8Uint:
-        return vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil;
-    default:
-        return vk::ImageAspectFlagBits::eColor;
-    }
-}
-
 GpuTexture::GpuTexture(uint32_t width, uint32_t height, vk::Format image_format, vk::ImageUsageFlags image_usage,
-                       vk::MemoryPropertyFlags memory_property)
+                       GpuMemory::Usage memory_usage)
     : format_(image_format), width_(width), height_(height)
 {
-    bool is_host = static_cast<bool>(memory_property & vk::MemoryPropertyFlagBits::eHostVisible);
+    bool is_host = GpuMemory::IsHostRead(memory_usage);
     vk::ImageCreateInfo image_create_info = {};
     image_create_info.imageType = vk::ImageType::e2D;
     image_create_info.format = image_format;
@@ -41,9 +22,7 @@ GpuTexture::GpuTexture(uint32_t width, uint32_t height, vk::Format image_format,
     image_create_info.sharingMode = vk::SharingMode::eExclusive;
 
     VmaAllocationCreateInfo alloc_create_info = {};
-    alloc_create_info.requiredFlags = static_cast<VkMemoryPropertyFlags>(memory_property);
-    alloc_create_info.preferredFlags =
-        is_host ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    alloc_create_info.usage = GpuMemory::GetVmaMemoryUsage(memory_usage);
     alloc_create_info.flags = is_host ? VMA_ALLOCATION_CREATE_MAPPED_BIT : 0;
 
     VkImage image;
@@ -51,7 +30,6 @@ GpuTexture::GpuTexture(uint32_t width, uint32_t height, vk::Format image_format,
     vmaCreateImage(GpuContext::Get().allocator, &static_cast<VkImageCreateInfo&>(image_create_info), &alloc_create_info,
                    &image, &allocation, nullptr);
     image_ = image;
-    image_view_ = GpuContext::Get().device.createImageView(*MakeImageViewCreateInfo());
     allocation_ = allocation;
 
     if (is_host)
@@ -64,39 +42,43 @@ GpuTexture::GpuTexture(uint32_t width, uint32_t height, vk::Format image_format,
 
 GpuTexture::~GpuTexture()
 {
-    GpuContext::Get().device.destroyImageView(image_view_);
     vmaDestroyImage(GpuContext::Get().allocator, image_, allocation_);
 }
 
-std::unique_ptr<vk::ImageSubresourceLayers> GpuTexture::MakeSubresourceLayers() const
+vk::UniqueImageView GpuTexture::CreateImageView(vk::ImageAspectFlags aspect_flags) const
 {
-    std::unique_ptr<vk::ImageSubresourceLayers> subresourceLayers = std::make_unique<vk::ImageSubresourceLayers>();
-    subresourceLayers->aspectMask = SubresourceAspectMask(format_);
-    subresourceLayers->mipLevel = 0;
-    subresourceLayers->baseArrayLayer = 0;
-    subresourceLayers->layerCount = 1;
-    return std::move(subresourceLayers);
+    return GpuContext::Get().device.createImageViewUnique(*MakeImageViewCreateInfo(aspect_flags));
 }
 
-std::unique_ptr<vk::ImageSubresourceRange> GpuTexture::MakeSubresourceRange() const
+std::unique_ptr<vk::ImageSubresourceLayers> GpuTexture::MakeSubresourceLayers(vk::ImageAspectFlags aspect_flags) const
 {
-    std::unique_ptr<vk::ImageSubresourceRange> subresourceRange = std::make_unique<vk::ImageSubresourceRange>();
-    subresourceRange->aspectMask = SubresourceAspectMask(format_);
-    subresourceRange->levelCount = 1;
-    subresourceRange->baseMipLevel = 0;
-    subresourceRange->layerCount = 1;
-    subresourceRange->baseArrayLayer = 0;
-    return std::move(subresourceRange);
+    std::unique_ptr<vk::ImageSubresourceLayers> subresource_layers = std::make_unique<vk::ImageSubresourceLayers>();
+    subresource_layers->aspectMask = aspect_flags;
+    subresource_layers->mipLevel = 0;
+    subresource_layers->baseArrayLayer = 0;
+    subresource_layers->layerCount = 1;
+    return std::move(subresource_layers);
 }
 
-std::unique_ptr<vk::ImageViewCreateInfo> GpuTexture::MakeImageViewCreateInfo() const
+std::unique_ptr<vk::ImageSubresourceRange> GpuTexture::MakeSubresourceRange(vk::ImageAspectFlags aspect_flags) const
+{
+    std::unique_ptr<vk::ImageSubresourceRange> subresource_range = std::make_unique<vk::ImageSubresourceRange>();
+    subresource_range->aspectMask = aspect_flags;
+    subresource_range->levelCount = 1;
+    subresource_range->baseMipLevel = 0;
+    subresource_range->layerCount = 1;
+    subresource_range->baseArrayLayer = 0;
+    return std::move(subresource_range);
+}
+
+std::unique_ptr<vk::ImageViewCreateInfo> GpuTexture::MakeImageViewCreateInfo(vk::ImageAspectFlags aspect_flags) const
 {
 
     std::unique_ptr<vk::ImageViewCreateInfo> create_info = std::make_unique<vk::ImageViewCreateInfo>();
     create_info->image = image_;
     create_info->viewType = vk::ImageViewType::e2D;
     create_info->format = format_;
-    create_info->subresourceRange = *MakeSubresourceRange();
+    create_info->subresourceRange = *MakeSubresourceRange(aspect_flags);
     create_info->components = { vk::ComponentSwizzle::eIdentity, vk::ComponentSwizzle::eIdentity,
                                 vk::ComponentSwizzle::eIdentity, vk::ComponentSwizzle::eIdentity };
     return create_info;

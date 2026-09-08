@@ -3,6 +3,7 @@
 #include <memory>
 #include <vulkan/vulkan.hpp>
 #include "../fairy_viewer.hpp"
+#include "gpu_memory.hpp"
 #include "vk_mem_alloc.h"
 
 namespace gpu
@@ -11,7 +12,7 @@ namespace gpu
 class GpuBuffer
 {
 public:
-    GpuBuffer(size_t size, vk::BufferUsageFlags buffer_usage, vk::MemoryPropertyFlags memory_property);
+    GpuBuffer(size_t size, vk::BufferUsageFlags buffer_usage, GpuMemory::Usage memory_usage);
     FV_DELETE_COPY_MOVE(GpuBuffer)
     ~GpuBuffer();
 

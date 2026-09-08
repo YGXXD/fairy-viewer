@@ -9,22 +9,22 @@ namespace fairy
 FairyResource::FairyResource()
 {
     i_resolution_buffer = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(ktm::fvec3), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    i_time_buffer = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    i_time_delta_buffer = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    i_frame_rate_buffer = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    i_frame_buffer = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(int), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
+        sizeof(ktm::fvec3), vk::BufferUsageFlagBits::eUniformBuffer, gpu::GpuMemory::Usage::eCpuToGpu));
+    i_time_buffer = std::unique_ptr<gpu::GpuBuffer>(
+        new gpu::GpuBuffer(sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, gpu::GpuMemory::Usage::eCpuToGpu));
+    i_time_delta_buffer = std::unique_ptr<gpu::GpuBuffer>(
+        new gpu::GpuBuffer(sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, gpu::GpuMemory::Usage::eCpuToGpu));
+    i_frame_rate_buffer = std::unique_ptr<gpu::GpuBuffer>(
+        new gpu::GpuBuffer(sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, gpu::GpuMemory::Usage::eCpuToGpu));
+    i_frame_buffer = std::unique_ptr<gpu::GpuBuffer>(
+        new gpu::GpuBuffer(sizeof(int), vk::BufferUsageFlagBits::eUniformBuffer, gpu::GpuMemory::Usage::eCpuToGpu));
     // todo i_channel_time_4_buffer_
     // todo i_channel_resolution_4_buffer_
     i_mouse_buffer = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(ktm::fvec4), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
+        sizeof(ktm::fvec4), vk::BufferUsageFlagBits::eUniformBuffer, gpu::GpuMemory::Usage::eCpuToGpu));
     // todo i_channel_4_texture_
     i_date_buffer = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(ktm::fvec4), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
+        sizeof(ktm::fvec4), vk::BufferUsageFlagBits::eUniformBuffer, gpu::GpuMemory::Usage::eCpuToGpu));
 }
 
 FairyResource::~FairyResource() = default;

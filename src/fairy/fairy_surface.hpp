@@ -52,6 +52,7 @@ private:
 
     vk::RenderPass render_pass_;
     std::vector<std::unique_ptr<gpu::GpuTexture>> render_targets_;
+    std::vector<vk::UniqueImageView> render_target_views_;
     std::vector<vk::Framebuffer> framebuffers_;
 
     vk::Queue render_queue_;

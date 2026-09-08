@@ -304,7 +304,7 @@ void FairyPipeline::CreateDrawResource()
     indices_type_ = vk::IndexType::eUint16;
     indices_count_ = sizeof(rect_indices) / sizeof(uint16_t);
     indices_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(rect_indices), vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
+        sizeof(rect_indices), vk::BufferUsageFlagBits::eIndexBuffer, gpu::GpuMemory::Usage::eCpuToGpu));
     memcpy(indices_buffer_->HostPointer(), rect_indices, sizeof(rect_indices));
 
     resources_.reserve(resource_count_);

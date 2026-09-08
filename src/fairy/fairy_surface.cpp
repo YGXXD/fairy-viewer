@@ -27,6 +27,7 @@ FairySurface::~FairySurface()
         gpu_context.device.destroyFramebuffer(framebuffers_[i]);
     }
     gpu_context.device.destroyRenderPass(render_pass_);
+    render_target_views_.clear();
 }
 
 void FairySurface::AddWaitSemaphore(vk::Semaphore semaphore, vk::PipelineStageFlags stage)
@@ -163,10 +164,12 @@ void FairySurface::CreateRenderTarget()
         break;
     }
     render_targets_.reserve(buffer_count_);
+    render_target_views_.reserve(buffer_count_);
     for (int i = 0; i < buffer_count_; ++i)
     {
         render_targets_.emplace_back(std::unique_ptr<gpu::GpuTexture>(
-            new gpu::GpuTexture(width_, height_, format_, image_usage, vk::MemoryPropertyFlagBits::eDeviceLocal)));
+            new gpu::GpuTexture(width_, height_, format_, image_usage, gpu::GpuMemory::Usage::eGpuOnly)));
+        render_target_views_.emplace_back(render_targets_.back()->CreateImageView(vk::ImageAspectFlagBits::eColor));
     }
 }
 
@@ -175,7 +178,7 @@ void FairySurface::CreateFramebuffer()
     framebuffers_.reserve(buffer_count_);
     for (int i = 0; i < buffer_count_; ++i)
     {
-        vk::ImageView render_target_view = render_targets_[i]->ImageView();
+        vk::ImageView render_target_view = render_target_views_[i].get();
         vk::FramebufferCreateInfo frame_buffer_create_info = {};
         frame_buffer_create_info.renderPass = render_pass_;
         frame_buffer_create_info.attachmentCount = 1;

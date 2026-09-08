@@ -4,18 +4,16 @@
 namespace gpu
 {
 
-GpuBuffer::GpuBuffer(size_t size, vk::BufferUsageFlags buffer_usage, vk::MemoryPropertyFlags memory_property)
+GpuBuffer::GpuBuffer(size_t size, vk::BufferUsageFlags buffer_usage, GpuMemory::Usage memory_usage)
     : size_(size), host_pointer_(nullptr)
 {
-    bool is_host = static_cast<bool>(memory_property & vk::MemoryPropertyFlagBits::eHostVisible);
+    bool is_host = GpuMemory::IsHostRead(memory_usage);
     vk::BufferCreateInfo buffer_create_info = {};
     buffer_create_info.size = size_;
     buffer_create_info.usage = buffer_usage;
 
     VmaAllocationCreateInfo alloc_create_info = {};
-    alloc_create_info.requiredFlags = static_cast<VkMemoryPropertyFlags>(memory_property);
-    alloc_create_info.preferredFlags =
-        is_host ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    alloc_create_info.usage = GpuMemory::GetVmaMemoryUsage(memory_usage);
     alloc_create_info.flags = is_host ? VMA_ALLOCATION_CREATE_MAPPED_BIT : 0;
 
     VkBuffer buffer;

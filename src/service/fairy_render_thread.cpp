@@ -115,8 +115,7 @@ void FairyRenderThread::FairyRenderThreadMain()
         {
             size_t buffer_size = surface_width_ * surface_height_ * 4;
             std::shared_ptr<gpu::GpuBuffer> buffer = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-                buffer_size, vk::BufferUsageFlagBits::eTransferDst,
-                vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent));
+                buffer_size, vk::BufferUsageFlagBits::eTransferDst, gpu::GpuMemory::Usage::eGpuToCpu));
             vk::CommandBuffer gpu_command_buffer = gpu_command_buffers_[current_render_index_];
             gpu_command_buffer.reset();
             vk::CommandBufferBeginInfo begin_info = {};
@@ -127,7 +126,7 @@ void FairyRenderThread::FairyRenderThreadMain()
             region.bufferOffset = 0;
             region.bufferRowLength = 0;
             region.bufferImageHeight = 0;
-            region.imageSubresource = *render_target->MakeSubresourceLayers();
+            region.imageSubresource = *render_target->MakeSubresourceLayers(vk::ImageAspectFlagBits::eColor);
             region.imageOffset = vk::Offset3D { 0, 0, 0 };
             region.imageExtent =
                 vk::Extent3D { static_cast<uint32_t>(surface_width_), static_cast<uint32_t>(surface_height_), 1 };
