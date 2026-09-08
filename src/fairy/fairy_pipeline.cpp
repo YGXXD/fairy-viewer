@@ -1,7 +1,7 @@
 #include "fairy_pipeline.hpp"
+#include "fairy_resource.hpp"
 #include "../gpu/gpu_context.hpp"
 #include "../gpu/gpu_buffer.hpp"
-#include "../gpu/gpu_texture.hpp"
 #include "shaders.hpp"
 #include "shaderc/shaderc.hpp"
 
@@ -33,94 +33,39 @@ bool CompileShader(const char* source, size_t source_size, shaderc_shader_kind k
     return true;
 }
 
-FairyPipeline::FairyPipeline()
+FairyPipeline::FairyPipeline(vk::RenderPass render_pass, int resource_count)
 {
     // create pipeline context
+    render_pass_ = render_pass;
     CreateDescriptorSetLayouts();
-    CreateDescriptorPoolAndSets();
     CreatePipelineLayout();
     CreateVertexShader();
 
     // create pipeline resource
-    CreateDrawIndices();
+    resource_count_ = resource_count;
+    CreateDescriptorPoolAndSets();
     CreateDrawResource();
     BindResourceToDescriptSets();
 }
 
 FairyPipeline::~FairyPipeline()
 {
-    ClearFragmentShaderAndPipeline();
     vk::Device device = gpu::GpuContext::Get().device;
-    device.destroyShaderModule(vertex_shader_);
-    device.destroyPipelineLayout(pipeline_layout_);
     device.freeDescriptorSets(descriptor_pool_, descriptor_sets_);
     device.destroyDescriptorPool(descriptor_pool_);
+    ClearFragmentShaderAndPipeline();
+    device.destroyShaderModule(vertex_shader_);
+    device.destroyPipelineLayout(pipeline_layout_);
+
     for (auto layout : descriptor_set_layouts_)
         device.destroyDescriptorSetLayout(layout);
 }
 
-void FairyPipeline::Update_iResolution(const ktm::fvec3& i_resolution)
-{
-    ktm::fvec3* i_resolution_ptr = static_cast<ktm::fvec3*>(i_resolution_buffer_->HostPointer());
-    *i_resolution_ptr = i_resolution;
-}
-
-void FairyPipeline::Update_iTime(float i_time)
-{
-    float* i_time_ptr = static_cast<float*>(i_time_buffer_->HostPointer());
-    *i_time_ptr = i_time;
-}
-
-void FairyPipeline::Update_iTimeDelta(float i_time_delta)
-{
-    float* i_time_delta_ptr = static_cast<float*>(i_time_delta_buffer_->HostPointer());
-    *i_time_delta_ptr = i_time_delta;
-}
-
-void FairyPipeline::Update_iFrameRate(float i_frame_rate)
-{
-    float* i_frame_rate_ptr = static_cast<float*>(i_frame_rate_buffer_->HostPointer());
-    *i_frame_rate_ptr = i_frame_rate;
-}
-
-void FairyPipeline::Update_iFrame(int i_frame)
-{
-    int* i_frame_ptr = static_cast<int*>(i_frame_buffer_->HostPointer());
-    *i_frame_ptr = i_frame;
-}
-
-void FairyPipeline::Update_iChannelTime(int index)
-{
-    // todo
-}
-
-void FairyPipeline::Update_iChannelResolution(int index)
-{
-    // todo
-}
-
-void FairyPipeline::Update_iMouse(const ktm::fvec4& i_mouse)
-{
-    ktm::fvec4* i_mouse_ptr = static_cast<ktm::fvec4*>(i_mouse_buffer_->HostPointer());
-    *i_mouse_ptr = i_mouse;
-}
-
-void FairyPipeline::Update_iChannel(int index)
-{
-    // todo
-}
-
-void FairyPipeline::Update_iDate(const ktm::fvec4& i_date)
-{
-    ktm::fvec4* i_date_ptr = static_cast<ktm::fvec4*>(i_date_buffer_->HostPointer());
-    *i_date_ptr = i_date;
-}
-
-bool FairyPipeline::Reset(vk::RenderPass render_pass, const std::string& shader)
+bool FairyPipeline::Reset(const std::string& shader)
 {
     ClearFragmentShaderAndPipeline();
     bool compile_success = CreateFragmentShader(shader);
-    CreatePipeline(render_pass);
+    CreatePipeline();
     return compile_success;
 }
 
@@ -154,41 +99,6 @@ void FairyPipeline::CreateDescriptorSetLayouts()
                                                                   i_date_binding };
     descriptor_set_layouts_.push_back(gpu::GpuContext::Get().device.createDescriptorSetLayout(
         vk::DescriptorSetLayoutCreateInfo({}, set0_bindings.size(), set0_bindings.data())));
-}
-
-void FairyPipeline::CreateDescriptorPoolAndSets()
-{
-    constexpr auto uniform_desc_size_lambda = []()
-    {
-        vk::DescriptorPoolSize uniform_pool_size = {};
-        uniform_pool_size.type = vk::DescriptorType::eUniformBuffer;
-        uniform_pool_size.descriptorCount = 1;
-        return uniform_pool_size;
-    };
-    vk::DescriptorPoolSize i_resolution_pool_size = uniform_desc_size_lambda();
-    vk::DescriptorPoolSize i_time_pool_size = uniform_desc_size_lambda();
-    vk::DescriptorPoolSize i_time_delta_pool_size = uniform_desc_size_lambda();
-    vk::DescriptorPoolSize i_frame_rate_pool_size = uniform_desc_size_lambda();
-    vk::DescriptorPoolSize i_frame_pool_size = uniform_desc_size_lambda();
-    vk::DescriptorPoolSize i_mouse_pool_size = uniform_desc_size_lambda();
-    vk::DescriptorPoolSize i_date_pool_size = uniform_desc_size_lambda();
-
-    std::vector<vk::DescriptorPoolSize> pool_sizes = { i_resolution_pool_size, i_time_pool_size,
-                                                       i_time_delta_pool_size, i_frame_rate_pool_size,
-                                                       i_frame_pool_size,      i_mouse_pool_size,
-                                                       i_date_pool_size };
-    vk::DescriptorPoolCreateInfo descriptor_pool_create_info = {};
-    descriptor_pool_create_info.poolSizeCount = pool_sizes.size();
-    descriptor_pool_create_info.pPoolSizes = pool_sizes.data();
-    descriptor_pool_create_info.maxSets = 1;
-    descriptor_pool_create_info.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
-    descriptor_pool_ = gpu::GpuContext::Get().device.createDescriptorPool(descriptor_pool_create_info);
-
-    vk::DescriptorSetAllocateInfo ds_allocate_info = {};
-    ds_allocate_info.pSetLayouts = descriptor_set_layouts_.data();
-    ds_allocate_info.descriptorPool = descriptor_pool_;
-    ds_allocate_info.descriptorSetCount = descriptor_set_layouts_.size();
-    descriptor_sets_ = gpu::GpuContext::Get().device.allocateDescriptorSets(ds_allocate_info);
 }
 
 void FairyPipeline::CreatePipelineLayout()
@@ -263,7 +173,7 @@ bool FairyPipeline::CreateFragmentShader(const std::string& shader)
     }
 }
 
-void FairyPipeline::CreatePipeline(vk::RenderPass render_pass)
+void FairyPipeline::CreatePipeline()
 {
     std::vector<vk::DynamicState> dynamic_states = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
     vk::PipelineDynamicStateCreateInfo dynamic_states_create_info = {};
@@ -333,7 +243,7 @@ void FairyPipeline::CreatePipeline(vk::RenderPass render_pass)
     pipeline_create_info.pStages = shader_stages.data();
     pipeline_create_info.layout = pipeline_layout_;
     pipeline_create_info.pDynamicState = &dynamic_states_create_info;
-    pipeline_create_info.renderPass = render_pass;
+    pipeline_create_info.renderPass = render_pass_;
     pipeline_create_info.subpass = 0;
     pipeline_ = gpu::GpuContext::Get().device.createGraphicsPipeline(nullptr, pipeline_create_info).value;
 }
@@ -352,7 +262,43 @@ void FairyPipeline::ClearFragmentShaderAndPipeline()
     }
 }
 
-void FairyPipeline::CreateDrawIndices()
+void FairyPipeline::CreateDescriptorPoolAndSets()
+{
+    auto uniform_desc_size_lambda = [count = resource_count_]()
+    {
+        vk::DescriptorPoolSize uniform_pool_size = {};
+        uniform_pool_size.type = vk::DescriptorType::eUniformBuffer;
+        uniform_pool_size.descriptorCount = count;
+        return uniform_pool_size;
+    };
+    vk::DescriptorPoolSize i_resolution_pool_size = uniform_desc_size_lambda();
+    vk::DescriptorPoolSize i_time_pool_size = uniform_desc_size_lambda();
+    vk::DescriptorPoolSize i_time_delta_pool_size = uniform_desc_size_lambda();
+    vk::DescriptorPoolSize i_frame_rate_pool_size = uniform_desc_size_lambda();
+    vk::DescriptorPoolSize i_frame_pool_size = uniform_desc_size_lambda();
+    vk::DescriptorPoolSize i_mouse_pool_size = uniform_desc_size_lambda();
+    vk::DescriptorPoolSize i_date_pool_size = uniform_desc_size_lambda();
+
+    std::vector<vk::DescriptorPoolSize> pool_sizes = { i_resolution_pool_size, i_time_pool_size,
+                                                       i_time_delta_pool_size, i_frame_rate_pool_size,
+                                                       i_frame_pool_size,      i_mouse_pool_size,
+                                                       i_date_pool_size };
+    vk::DescriptorPoolCreateInfo descriptor_pool_create_info = {};
+    descriptor_pool_create_info.poolSizeCount = pool_sizes.size();
+    descriptor_pool_create_info.pPoolSizes = pool_sizes.data();
+    descriptor_pool_create_info.maxSets = resource_count_;
+    descriptor_pool_create_info.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
+    descriptor_pool_ = gpu::GpuContext::Get().device.createDescriptorPool(descriptor_pool_create_info);
+
+    std::vector<vk::DescriptorSetLayout> need_alloc_set_layout(resource_count_, descriptor_set_layouts_[0]);
+    vk::DescriptorSetAllocateInfo ds_allocate_info = {};
+    ds_allocate_info.pSetLayouts = need_alloc_set_layout.data();
+    ds_allocate_info.descriptorPool = descriptor_pool_;
+    ds_allocate_info.descriptorSetCount = need_alloc_set_layout.size();
+    descriptor_sets_ = gpu::GpuContext::Get().device.allocateDescriptorSets(ds_allocate_info);
+}
+
+void FairyPipeline::CreateDrawResource()
 {
     const uint16_t rect_indices[] = { 0, 1, 2, 1, 3, 2 };
     indices_type_ = vk::IndexType::eUint16;
@@ -360,27 +306,12 @@ void FairyPipeline::CreateDrawIndices()
     indices_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
         sizeof(rect_indices), vk::BufferUsageFlagBits::eIndexBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
     memcpy(indices_buffer_->HostPointer(), rect_indices, sizeof(rect_indices));
-}
 
-void FairyPipeline::CreateDrawResource()
-{
-    i_resolution_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(ktm::fvec3), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    i_time_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    i_time_delta_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    i_frame_rate_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(float), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    i_frame_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(int), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    // todo i_channel_time_4_buffer_
-    // todo i_channel_resolution_4_buffer_
-    i_mouse_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(ktm::fvec4), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
-    // todo i_channel_4_texture_
-    i_date_buffer_ = std::unique_ptr<gpu::GpuBuffer>(new gpu::GpuBuffer(
-        sizeof(ktm::fvec4), vk::BufferUsageFlagBits::eUniformBuffer, vk::MemoryPropertyFlagBits::eHostVisible));
+    resources_.reserve(resource_count_);
+    for (int i = 0; i < resource_count_; ++i)
+    {
+        resources_.emplace_back(std::unique_ptr<FairyResource>(new FairyResource()));
+    }
 }
 
 void FairyPipeline::BindResourceToDescriptSets()
@@ -393,46 +324,53 @@ void FairyPipeline::BindResourceToDescriptSets()
         buffer_info.offset = 0;
         return buffer_info;
     };
-    vk::DescriptorBufferInfo i_resolution_buffer_info = desc_buffer_info_lambda(i_resolution_buffer_->Buffer());
-    vk::DescriptorBufferInfo i_time_buffer_info = desc_buffer_info_lambda(i_time_buffer_->Buffer());
-    vk::DescriptorBufferInfo i_time_delta_buffer_info = desc_buffer_info_lambda(i_time_delta_buffer_->Buffer());
-    vk::DescriptorBufferInfo i_frame_rate_buffer_info = desc_buffer_info_lambda(i_frame_rate_buffer_->Buffer());
-    vk::DescriptorBufferInfo i_frame_buffer_info = desc_buffer_info_lambda(i_frame_buffer_->Buffer());
-    vk::DescriptorBufferInfo i_mouse_buffer_info = desc_buffer_info_lambda(i_mouse_buffer_->Buffer());
-    vk::DescriptorBufferInfo i_date_buffer_info = desc_buffer_info_lambda(i_date_buffer_->Buffer());
+    for (int i = 0; i < resource_count_; ++i)
+    {
+        const FairyResource& resource = Resource(i);
+        vk::DescriptorBufferInfo i_resolution_buffer_info =
+            desc_buffer_info_lambda(resource.i_resolution_buffer->Buffer());
+        vk::DescriptorBufferInfo i_time_buffer_info = desc_buffer_info_lambda(resource.i_time_buffer->Buffer());
+        vk::DescriptorBufferInfo i_time_delta_buffer_info =
+            desc_buffer_info_lambda(resource.i_time_delta_buffer->Buffer());
+        vk::DescriptorBufferInfo i_frame_rate_buffer_info =
+            desc_buffer_info_lambda(resource.i_frame_rate_buffer->Buffer());
+        vk::DescriptorBufferInfo i_frame_buffer_info = desc_buffer_info_lambda(resource.i_frame_buffer->Buffer());
+        vk::DescriptorBufferInfo i_mouse_buffer_info = desc_buffer_info_lambda(resource.i_mouse_buffer->Buffer());
+        vk::DescriptorBufferInfo i_date_buffer_info = desc_buffer_info_lambda(resource.i_date_buffer->Buffer());
 
-    vk::WriteDescriptorSet write_uniform_set0 = {};
-    write_uniform_set0.dstSet = descriptor_sets_[0];
-    write_uniform_set0.descriptorCount = 1;
-    write_uniform_set0.descriptorType = vk::DescriptorType::eUniformBuffer;
-    vk::WriteDescriptorSet write_i_resolution_descriptor_set = write_uniform_set0;
-    write_i_resolution_descriptor_set.dstBinding = 0;
-    write_i_resolution_descriptor_set.pBufferInfo = &i_resolution_buffer_info;
-    vk::WriteDescriptorSet write_i_time_descriptor_set = write_uniform_set0;
-    write_i_time_descriptor_set.dstBinding = 1;
-    write_i_time_descriptor_set.pBufferInfo = &i_time_buffer_info;
-    vk::WriteDescriptorSet write_i_time_delta_descriptor_set = write_uniform_set0;
-    write_i_time_delta_descriptor_set.dstBinding = 2;
-    write_i_time_delta_descriptor_set.pBufferInfo = &i_time_delta_buffer_info;
-    vk::WriteDescriptorSet write_i_frame_rate_descriptor_set = write_uniform_set0;
-    write_i_frame_rate_descriptor_set.dstBinding = 3;
-    write_i_frame_rate_descriptor_set.pBufferInfo = &i_frame_rate_buffer_info;
-    vk::WriteDescriptorSet write_i_frame_descriptor_set = write_uniform_set0;
-    write_i_frame_descriptor_set.dstBinding = 4;
-    write_i_frame_descriptor_set.pBufferInfo = &i_frame_buffer_info;
-    vk::WriteDescriptorSet write_i_mouse_descriptor_set = write_uniform_set0;
-    write_i_mouse_descriptor_set.dstBinding = 5;
-    write_i_mouse_descriptor_set.pBufferInfo = &i_mouse_buffer_info;
-    vk::WriteDescriptorSet write_i_date_descriptor_set = write_uniform_set0;
-    write_i_date_descriptor_set.dstBinding = 6;
-    write_i_date_descriptor_set.pBufferInfo = &i_date_buffer_info;
+        vk::WriteDescriptorSet write_uniform_set0 = {};
+        write_uniform_set0.dstSet = descriptor_sets_[i];
+        write_uniform_set0.descriptorCount = 1;
+        write_uniform_set0.descriptorType = vk::DescriptorType::eUniformBuffer;
+        vk::WriteDescriptorSet write_i_resolution_descriptor_set = write_uniform_set0;
+        write_i_resolution_descriptor_set.dstBinding = 0;
+        write_i_resolution_descriptor_set.pBufferInfo = &i_resolution_buffer_info;
+        vk::WriteDescriptorSet write_i_time_descriptor_set = write_uniform_set0;
+        write_i_time_descriptor_set.dstBinding = 1;
+        write_i_time_descriptor_set.pBufferInfo = &i_time_buffer_info;
+        vk::WriteDescriptorSet write_i_time_delta_descriptor_set = write_uniform_set0;
+        write_i_time_delta_descriptor_set.dstBinding = 2;
+        write_i_time_delta_descriptor_set.pBufferInfo = &i_time_delta_buffer_info;
+        vk::WriteDescriptorSet write_i_frame_rate_descriptor_set = write_uniform_set0;
+        write_i_frame_rate_descriptor_set.dstBinding = 3;
+        write_i_frame_rate_descriptor_set.pBufferInfo = &i_frame_rate_buffer_info;
+        vk::WriteDescriptorSet write_i_frame_descriptor_set = write_uniform_set0;
+        write_i_frame_descriptor_set.dstBinding = 4;
+        write_i_frame_descriptor_set.pBufferInfo = &i_frame_buffer_info;
+        vk::WriteDescriptorSet write_i_mouse_descriptor_set = write_uniform_set0;
+        write_i_mouse_descriptor_set.dstBinding = 5;
+        write_i_mouse_descriptor_set.pBufferInfo = &i_mouse_buffer_info;
+        vk::WriteDescriptorSet write_i_date_descriptor_set = write_uniform_set0;
+        write_i_date_descriptor_set.dstBinding = 6;
+        write_i_date_descriptor_set.pBufferInfo = &i_date_buffer_info;
 
-    std::vector<vk::WriteDescriptorSet> write_descriptor_sets = {
-        write_i_resolution_descriptor_set, write_i_time_descriptor_set,  write_i_time_delta_descriptor_set,
-        write_i_frame_rate_descriptor_set, write_i_frame_descriptor_set, write_i_mouse_descriptor_set,
-        write_i_date_descriptor_set
-    };
-    gpu::GpuContext::Get().device.updateDescriptorSets(write_descriptor_sets, nullptr);
+        std::vector<vk::WriteDescriptorSet> write_descriptor_sets = {
+            write_i_resolution_descriptor_set, write_i_time_descriptor_set,  write_i_time_delta_descriptor_set,
+            write_i_frame_rate_descriptor_set, write_i_frame_descriptor_set, write_i_mouse_descriptor_set,
+            write_i_date_descriptor_set
+        };
+        gpu::GpuContext::Get().device.updateDescriptorSets(write_descriptor_sets, nullptr);
+    }
 }
 
 } // namespace fairy

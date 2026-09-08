@@ -7,6 +7,7 @@
 #include "../gpu/gpu_texture.hpp"
 #include "../fairy/fairy_surface.hpp"
 #include "../fairy/fairy_pipeline.hpp"
+#include "../fairy/fairy_resource.hpp"
 #include "fairy_viewer_app_shaders.hpp"
 
 #include <iostream>
@@ -154,7 +155,8 @@ void FairyViewerApp::InitFairy()
     shader_editor_.SetTabSize(4);
     shader_editor_.SetReadOnly(false);
 
-    fairy_pipeline_ = std::unique_ptr<fairy::FairyPipeline>(new fairy::FairyPipeline());
+    fairy_pipeline_ = std::unique_ptr<fairy::FairyPipeline>(
+        new fairy::FairyPipeline(fairy_surface_->RenderPass(), fairy_surface_->BufferCount()));
     ResetPipeline();
 }
 
@@ -172,14 +174,15 @@ void FairyViewerApp::RenderFairy(int index)
         fps_curr_frame_ = i_frame_;
         fps_curr_time_ = 0.f;
     }
-    fairy_pipeline_->Update_iResolution(
+    const fairy::FairyResource& resource = fairy_pipeline_->Resource(index);
+    resource.Update_iResolution(
         ktm::fvec3 { static_cast<float>(fairy_surface_width_), static_cast<float>(fairy_surface_height_), 1.f });
-    fairy_pipeline_->Update_iTime(i_time_);
-    fairy_pipeline_->Update_iTimeDelta(i_time_delta_);
-    fairy_pipeline_->Update_iFrameRate(i_frame_rate_);
-    fairy_pipeline_->Update_iFrame(i_frame_++);
-    fairy_pipeline_->Update_iMouse(i_mouse_);
-    fairy_pipeline_->Update_iDate(i_date_);
+    resource.Update_iTime(i_time_);
+    resource.Update_iTimeDelta(i_time_delta_);
+    resource.Update_iFrameRate(i_frame_rate_);
+    resource.Update_iFrame(i_frame_++);
+    resource.Update_iMouse(i_mouse_);
+    resource.Update_iDate(i_date_);
     fairy_surface_->Render(fairy_pipeline_.get(), index);
 }
 
@@ -197,7 +200,7 @@ void FairyViewerApp::ResetPipeline()
 {
     std::string codes = shader_editor_.GetText();
     fairy_surface_->WaitRenderComplete();
-    pipeline_reset_status_ = fairy_pipeline_->Reset(fairy_surface_->RenderPass(), codes);
+    pipeline_reset_status_ = fairy_pipeline_->Reset(codes);
     fairy_start_time_ = SDL_GetTicks();
     i_time_ = 0;
     i_time_delta_ = 0;

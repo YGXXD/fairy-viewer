@@ -4,6 +4,7 @@
 #include "../gpu/gpu_context.hpp"
 #include "../fairy/fairy_surface.hpp"
 #include "../fairy/fairy_pipeline.hpp"
+#include "../fairy/fairy_resource.hpp"
 
 #include <iostream>
 
@@ -209,7 +210,8 @@ void FairyRenderThread::InitFairy()
 {
     fairy_surface_ = std::unique_ptr<fairy::FairySurface>(new fairy::FairySurface(
         surface_width_, surface_height_, surface_format_, fairy::FairySurfaceUsage::eCopy, buffer_count_));
-    fairy_pipeline_ = std::unique_ptr<fairy::FairyPipeline>(new fairy::FairyPipeline());
+    fairy_pipeline_ = std::unique_ptr<fairy::FairyPipeline>(
+        new fairy::FairyPipeline(fairy_surface_->RenderPass(), fairy_surface_->BufferCount()));
     const std::string default_shader = R"(/*
     shadertoy.com input variables
     uniform vec3      iResolution;           // viewport resolution (in pixels)
@@ -262,14 +264,15 @@ void FairyRenderThread::RenderFairy(int index)
     i_time_delta_ = fairy_current_time - i_time_;
     i_time_ = fairy_current_time;
     i_frame_rate_ = 1.f / i_time_delta_;
-    fairy_pipeline_->Update_iResolution(
+    const fairy::FairyResource& resource = fairy_pipeline_->Resource(index);
+    resource.Update_iResolution(
         ktm::fvec3 { static_cast<float>(surface_width_), static_cast<float>(surface_height_), 1.f });
-    fairy_pipeline_->Update_iTime(i_time_);
-    fairy_pipeline_->Update_iTimeDelta(i_time_delta_);
-    fairy_pipeline_->Update_iFrameRate(i_frame_rate_);
-    fairy_pipeline_->Update_iFrame(i_frame_++);
-    fairy_pipeline_->Update_iMouse(i_mouse_);
-    fairy_pipeline_->Update_iDate(i_date_);
+    resource.Update_iTime(i_time_);
+    resource.Update_iTimeDelta(i_time_delta_);
+    resource.Update_iFrameRate(i_frame_rate_);
+    resource.Update_iFrame(i_frame_++);
+    resource.Update_iMouse(i_mouse_);
+    resource.Update_iDate(i_date_);
     fairy_surface_->Render(fairy_pipeline_.get(), index);
 }
 
@@ -284,7 +287,7 @@ bool FairyRenderThread::ResetPipeline(const std::string& codes)
     i_mouse_ = ktm::fvec4 { 0, 0, 0, 0 };
     i_date_ = ktm::fvec4 { 0, 0, 0, 0 };
     current_reset_codes_ = codes;
-    return fairy_pipeline_->Reset(fairy_surface_->RenderPass(), codes);
+    return fairy_pipeline_->Reset(codes);
 }
 
 } // namespace service

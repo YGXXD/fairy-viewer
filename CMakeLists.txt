@@ -29,6 +29,7 @@ set(FAIRY_VIEWER_GPU_SOURCE_FILES
 set(FAIRY_VIEWER_FAIRY_SOURCE_FILES
 	${CMAKE_SOURCE_DIR}/src/fairy/fairy_surface.cpp
 	${CMAKE_SOURCE_DIR}/src/fairy/fairy_pipeline.cpp
+	${CMAKE_SOURCE_DIR}/src/fairy/fairy_resource.cpp
 )
 add_library(${FAIRY_VIEWER_CORE} STATIC
 	${FAIRY_VIEWER_GPU_SOURCE_FILES}
