@@ -12,7 +12,7 @@ class GpuContext
 public:
     FV_SINGLETON_IMPL(GpuContext)
     FV_DELETE_COPY_MOVE(GpuContext)
-    static void Init();
+    static void Init(bool surface_enable);
     static void Quit();
 
     vk::Instance instance;

@@ -28,6 +28,7 @@ FairySurface::~FairySurface()
     }
     gpu_context.device.destroyRenderPass(render_pass_);
     render_target_views_.clear();
+    render_targets_.clear();
 }
 
 void FairySurface::AddWaitSemaphore(vk::Semaphore semaphore, vk::PipelineStageFlags stage)

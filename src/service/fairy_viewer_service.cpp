@@ -29,7 +29,7 @@ void FairyViewerService::Run()
     g_fairy_viewer_service = this;
     rtc::InitLogger(rtc::LogLevel::Info);
     rtc::Preload();
-    gpu::GpuContext::Init();
+    gpu::GpuContext::Init(false);
     render_thread_ =
         std::make_unique<FairyRenderThread>(fairy_surface_width_, fairy_surface_height_, fairy_buffer_count_);
     httplib::Server svr;

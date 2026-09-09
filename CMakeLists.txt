@@ -183,7 +183,7 @@ if(FAIRY_VIEWER_BUILD_SERVICE)
 	)
 	set(CPP_HTTPLIB_SOURCE_FILES ${CPP_HTTPLIB_BINARY_DIR}/httplib.h.cpp)
 	add_library(CppHttpLib STATIC ${CPP_HTTPLIB_SOURCE_FILES})
-	target_include_directories(CppHttpLib PUBLIC ${CPP_HTTPLIB_SOURCE_DIR})
+	target_include_directories(CppHttpLib PUBLIC ${CPP_HTTPLIB_SOURCE_DIR} ${OPENSSL_INCLUDE_DIR})
 	target_link_libraries(${FAIRY_VIEWER_SERVICE} PUBLIC CppHttpLib)
 
 	# ffmpeg

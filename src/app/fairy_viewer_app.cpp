@@ -26,7 +26,7 @@ FairyViewerApp::~FairyViewerApp() = default;
 
 void FairyViewerApp::Run()
 {
-    gpu::GpuContext::Init();
+    gpu::GpuContext::Init(true);
     InitSDLContext();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
@@ -79,7 +79,6 @@ void FairyViewerApp::Run()
 void FairyViewerApp::InitSDLContext()
 {
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS);
-    gpu::GpuContext::Init();
     window_ = SDL_CreateWindow(title_, window_width_, window_height_, SDL_WINDOW_RESIZABLE);
     SDL_ShowWindow(window_);
     SDL_StartTextInput(window_);

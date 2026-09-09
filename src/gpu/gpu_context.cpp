@@ -14,30 +14,43 @@ uint32_t queue_family_index_;
 uint32_t fairy_queue_family_index_;
 vk::Device device_;
 VmaAllocator allocator_;
+std::vector<const char*> instance_extension_names_;
+std::vector<const char*> device_extension_names_;
 
-std::vector<const char*> instance_extension_names_ = {
-    "VK_KHR_surface",
+void InitExtension(bool surface_enable)
+{
+    instance_extension_names_ = { "VK_KHR_get_physical_device_properties2",
 #if defined(FV_PLATFORM_APPLE)
-    // Apple does not officially support Vulkan. To run Vulkan on Apple
-    // platforms using MoltenVK, this extension allows
-    // the physical device to enable the
-    // "VK_KHR_portability_subset" extension.
-    "VK_KHR_portability_enumeration", "VK_MVK_macos_surface", "VK_EXT_metal_surface",
+                                  // Apple does not officially support Vulkan. To run Vulkan on Apple
+                                  // platforms using MoltenVK, this extension allows
+                                  // the physical device to enable the
+                                  // "VK_KHR_portability_subset" extension.
+                                  "VK_KHR_portability_enumeration"
+#endif
+
+    };
+    device_extension_names_ = { "VK_KHR_create_renderpass2",
+#if defined(FV_PLATFORM_APPLE)
+                                // This extension allows Vulkan to be built on top of other
+                                // graphics APIs, macOS requires it to be built on top of Metal.
+                                "VK_KHR_portability_subset"
+#endif
+    };
+    if (surface_enable)
+    {
+        instance_extension_names_.push_back("VK_KHR_surface");
+        instance_extension_names_.push_back("VK_EXT_swapchain_colorspace");
+#if defined(FV_PLATFORM_APPLE)
+        instance_extension_names_.push_back("VK_MVK_macos_surface");
+        instance_extension_names_.push_back("VK_EXT_metal_surface");
 #elif defined(FV_PLATFORM_WINDOWS)
-    "VK_KHR_win32_surface",
+        instance_extension_names_.push_back("VK_KHR_win32_surface");
+#elif defined(FV_PLATFORM_LINUX)
+        instance_extension_names_.push_back("VK_KHR_xlib_surface");
 #endif
-#if defined(FV_PLATFORM_LINUX)
-    "VK_KHR_xlib_surface",
-#endif
-    "VK_KHR_get_physical_device_properties2", "VK_EXT_swapchain_colorspace"
-};
-std::vector<const char*> device_extension_names_ = { "VK_KHR_create_renderpass2",
-#if defined(FV_PLATFORM_APPLE)
-                                                     // This extension allows Vulkan to be built on top of other
-                                                     // graphics APIs, macOS requires it to be built on top of Metal.
-                                                     "VK_KHR_portability_subset",
-#endif
-                                                     "VK_KHR_swapchain" };
+        device_extension_names_.push_back("VK_KHR_swapchain");
+    }
+}
 
 void CreateInstance()
 {
@@ -154,8 +167,9 @@ void CreateVmaMemoryAllocator()
     vmaCreateAllocator(&allocator_info, &allocator_);
 }
 
-void GpuContext::Init()
+void GpuContext::Init(bool surface_enable)
 {
+    InitExtension(surface_enable);
     CreateInstance();
     CreatePhysicalDeviceAndProperties();
     CreateDevice();
